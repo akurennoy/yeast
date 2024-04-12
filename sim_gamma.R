@@ -12,7 +12,7 @@ gamma_theta<-2
 
 sigma<-sqrt(gamma_k)*gamma_theta
 alpha<-0.05
-eff<-seq(0,0.1,0.2,0.3,0.4)
+eff<-c(0,0.1,0.2,0.3,0.4)
 
 
 #################################### SEQUENTIAL INFERENCE FRAMEWORKS
@@ -63,9 +63,6 @@ compute_convolution <- function(s, sigma, b_1, b_2) {
   # sigma - the std of the untruncated "version" of the truncated normal
   # b_1 - the (upper) truncation (cutoff) point
   #
-  # See:
-  # 1. https://www.erikdrysdale.com/NTS/
-  # 2. https://www.kss.or.kr/jounalDown.php?IDX=831
   zeta <- sqrt(sigma^2 + s^2)
   rho <- sigma / sqrt(sigma^2 + s^2)
   h <- b_2 / zeta
@@ -183,8 +180,7 @@ detN<-function(input, nseq,N){
 }
 
 ###################################################################################
-############################# Simulation 1 - Comparing FPR and Power of all methods
-
+############################# Simulations
 set.seed(2024)
 nrows<-81
 tib<-matrix(NA, rep*length(eff)*nrows,6)
@@ -197,7 +193,6 @@ for(r in 1:rep){
     std_res=sigma #for mSPRT approach (known res var)
     std_err = sqrt(sigma^2/(1:N) + sigma^2/(1:N))
     zdiff<-diff / std_err
-    #Assume known variance to not have to deal with t-dist
     
     #Bonferroni
     Bonferroni_stream = qnorm(1-alpha/N)
@@ -216,7 +211,7 @@ for(r in 1:rep){
     GAVI500<-GAVI(1:N,alpha=2*alpha,phi=500,sigma2=sigma^2, est=diff)
     GAVI250<-GAVI(1:N,alpha=2*alpha,phi=250,sigma2=sigma^2, est=diff)
     
-    ### Zalando SST
+    ### SST and pSST
     sig_SST<-SST(N, sqrt(2)*sigma, alpha, est=diff*(1:N))
     sig_pSST7<-(diff*(1:N) > pSST7)
     sig_pSST14<-(diff*(1:N) > pSST14)
