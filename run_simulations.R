@@ -19,7 +19,7 @@ source("utils.R")
 
 NUM_OBSERVATIONS = 500 # number of observations per experiment group,
                        # observations come in pairs
-NUM_REPLICATIONS = 10
+NUM_REPLICATIONS = 100000
 EVENT_VALUE_STD = 1
 SIGNIFICANCE_LEVEL = 0.05
 EFFECT_SIZES = c(0.0, 0.1, 0.2, 0.3, 0.4)
@@ -42,7 +42,7 @@ continuous_methods = list(
   mSPRTphi025=mSPRT$new("mSPRT025", 0.05, increment_std,  25),
   mSPRTphi011=mSPRT$new("mSPRT011", 0.05, increment_std,  1 / 0.3^2),
   # -- GAVI
-  GAVI250=GAVI$new("GAVI250", 0.05, increment_std, 750),
+  GAVI250=GAVI$new("GAVI250", 0.05, increment_std, 250),
   GAVI500=GAVI$new("GAVI500", 0.05, increment_std, 500),
   GAVI750=GAVI$new("GAVI750", 0.05, increment_std, 750),
   Bonferroni_stream=Bonferroni$new(
