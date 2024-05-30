@@ -3,6 +3,7 @@ Simulation experiments for the paper
 
 
 - `run_simulations.R` - the main R script that runs all of the simulation experiments
+- `data_generation.R` - an R script with classes for data generation
 - `methods` - a folder with the implementation of the sequential tests under comparison
 - `utils.R` - an R script with helper classes and functions
 

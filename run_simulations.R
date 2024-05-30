@@ -1,7 +1,4 @@
-# library(tidyverse)
-# library(xtable)
-# library(scales)
-
+source("data_generation.R")
 source("methods/bonferroni.R")
 source("methods/caa.R")
 source("methods/gavi.R")
