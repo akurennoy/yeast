@@ -1,4 +1,7 @@
-library(ldbounds)
+if(!require("ldbounds", character.only=TRUE)) {
+  install.packages("ldbounds")
+  library("ldbounds", character.only=TRUE)
+}
 
 source("methods/sequential_test.R")
 source("utils.R")
