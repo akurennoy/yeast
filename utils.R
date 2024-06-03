@@ -1,4 +1,7 @@
-library(data.table)
+if(!require("data.table", character.only=TRUE)) {
+  install.packages("data.table")
+  library("data.table", character.only=TRUE)
+}
 library(R6)
 
 source("methods/sequential_test.R")
@@ -81,14 +84,7 @@ Aggregator = R6Class(
       result = data.table(self$df)
       result[, self$DETECTION_RATE_COL := as.numeric(.SD[[self$NUM_DETECTIONS_COL]]) / .SD[[self$NUM_TRIALS_COL]]]
       result[, self$AVERAGE_SAVINGS_COL := .SD[[self$TOTAL_SAVINGS_COL]] / .SD[[self$NUM_TRIALS_COL]]]
-      output_columns = c(
-        self$EFFECT_COL,
-        self$MODE_COL,
-        self$METHOD_COL,
-        self$DETECTION_RATE_COL,
-        self$AVERAGE_SAVINGS_COL
-      )
-      return(result)#[, ..output_columns])
+      return(result)
     }
   )
 )
@@ -142,3 +138,44 @@ report = function(result, continuous_methods) {
   reporter$print_savings()
   reporter$print_additional_results()
 }
+
+
+compute_recursive_std = function(observations) {
+  num_observations = length(observations)
+  return(sqrt(
+    (cumsum(observations^2) / 1:num_observations
+     - (cumsum(observations) / 1:num_observations)^2)
+    * 1:num_observations / c(NA, 1:(num_observations - 1))
+  ))
+}
+
+
+test_compute_recursive_std = function() {
+  observations = c(1, 0.5, -1.2)
+  
+  std = numeric(length(observations))
+  
+  for (i in 1:length(observations)) {
+    std[i] = sqrt(var(observations[1:i]))
+  }
+  stopifnot(all.equal(std, compute_recursive_std(observations)))
+}
+
+
+# test_compute_recursive_std()
+
+
+apply_winsorisation = function(data, col, cutoff) {
+  data[[col]] = pmin(data[[col]], cutoff)
+  return(data)
+}
+
+
+test_apply_winsorisation = function() {
+  df = apply_winsorisation(data.table(a=c(1, 5, 2), b=c(100, 100, 100)), "a", 4)
+  stopifnot(max(df[, "a"]) == 4)
+  stopifnot(max(df[, "b"]) == 100)
+}
+
+
+# test_apply_winsorisation()

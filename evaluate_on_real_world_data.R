@@ -1,0 +1,191 @@
+# In this script, we will evaluate the sequential tests on real data from
+# a major e-commerce platform. That data consists of orders (checkout events).
+# We will randomly assign users that placed those orders to either control and
+# treatment and then apply the sequential tests to the resulting trajectory of
+# the cumulative revenue difference between the two groups. We will then repeat
+# this multiple times and measure the fraction of times where a detection
+# occurs. Since the users are assigned randomly post-factum and no real
+# treatment gets applied to the treatment group, this fraction should be close
+# to the nominal significance level.
+
+# The data is split in 2-week periods. This duration corresponds to a typical
+# experiment duration on the e-commerce platform. We will apply the described
+# procedure to those periods separately and then pool the detection outcomes
+# to compute the detection fraction (false detection rate) across both the
+# 2-week periods and the generated assignments. When applying the sequential
+# testing methods we will set the increment standard deviation to its estimate
+# obtained from the previous 2-week period. GAVI and mSPRT will be additionally
+# evaluated in the mode in which the increment standard deviation is estimated
+# during the monitoring process (using the data arrived so far). The expected
+# number of observations required by SST and pSST methods will also be
+# estimated on the preceeding 2-week period. There are 25 2-week periods in
+# total and we will use 23 of them for evaluation (the first one is used to
+# compute the 99.9% percentile of the order value which serves as as a cutoff
+# for winsorisation that gets applied to all subsequent data; the remaining 24
+# fortnight periods are used in such a way that the input parameters mentioned
+# above are estimated on the preceeding period, hence we leave the first of the
+# 24 periods out, which leaves us with 23 periods for the evaluation).
+# For each of the 2-week periods we will generate the random assignments 100
+# times and will have 2400 cumulative revenue trajectories to "monitor" and
+# measure the false detection rate.
+
+if (!require("arrow", character.only = TRUE)) {
+  install.packages("arrow")
+  library("arrow", character.only = TRUE)
+}
+
+source("data_generation.R")
+source("methods/bonferroni.R")
+source("methods/caa.R")
+source("methods/gavi.R")
+source("methods/gst.R")
+source("methods/msprt.R")
+source("methods/psst.R")
+source("methods/sst.R")
+source("utils.R")
+
+
+# Global Settings
+
+SIGNIFICANCE_LEVEL = 0.05
+NUM_ASSIGNMENT_REPLICATIONS = 10000 # for each 2-week period
+DATA_DIRECTORY = "./checkouts"
+INCREMENT_STD_NUM_BURN_IN_STEPS = 100 # when estimating the increment standard
+# deviation recursively from the in-period
+# this number of initial estimates will
+# be substituted with the estimate
+# computed from the previous period data
+
+# Definitions
+
+initialise_continuous_methods = function(increment_std,
+                                         in_period_increment_std,
+                                         expected_num_observations) {
+  return(
+    list(
+      # -- SST
+      SST = SST$new(
+        "SST",
+        SIGNIFICANCE_LEVEL,
+        expected_num_observations,
+        increment_std
+      ),
+      # TODO: pass the cumulative expected number of observations per period
+      # and initialise pSST accordingly
+      # # -- pSST
+      # pSST07 = pSST$new("pSST07", SIGNIFICANCE_LEVEL, round((1:7) * (
+      #   expected_num_observations /  7
+      # )), increment_std),
+      # pSST14 = pSST$new("pSST14", SIGNIFICANCE_LEVEL, round((1:14) * (
+      #   expected_num_observations / 14
+      # )), increment_std),
+      # -- mSPRT
+      mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, increment_std, 100),
+      mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, increment_std, 25),
+      mSPRTphi011 = mSPRT$new("mSPRT011", SIGNIFICANCE_LEVEL, increment_std, 1 / 0.3 ^
+                                2),
+      mSPRTphi100 = mSPRT$new(
+        "mSPRT100-i",
+        SIGNIFICANCE_LEVEL,
+        in_period_increment_std,
+        100
+      ),
+      mSPRTphi025 = mSPRT$new(
+        "mSPRT025-i",
+        SIGNIFICANCE_LEVEL,
+        in_period_increment_std,
+        25
+      ),
+      mSPRTphi011 = mSPRT$new(
+        "mSPRT011-i",
+        SIGNIFICANCE_LEVEL,
+        in_period_increment_std,
+        1 / 0.3 ^ 2
+      ),
+      # -- GAVI
+      GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, increment_std, 250),
+      GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, increment_std, 500),
+      GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, increment_std, 750),
+      GAVI250 = GAVI$new(
+        "GAVI250-i",
+        SIGNIFICANCE_LEVEL,
+        in_period_increment_std,
+        250
+      ),
+      GAVI500 = GAVI$new(
+        "GAVI500-i",
+        SIGNIFICANCE_LEVEL,
+        in_period_increment_std,
+        500
+      ),
+      GAVI750 = GAVI$new(
+        "GAVI750-i",
+        SIGNIFICANCE_LEVEL,
+        in_period_increment_std,
+        750
+      ),
+      # -- CAA (Statsig)
+      CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
+      CAA = CAA$new("CAA-i", SIGNIFICANCE_LEVEL, increment_std)
+    )
+  )
+}
+
+# Conducting the Evaluation
+
+# Each input file contains orders placed within a 2-week period. The order
+# of the file names corresponds to the chronological order of the 2-week period.
+# There are 25 files in total covering the time frame between 2023-05-23 and
+# 2024-05-12 (without any gaps or overlaps).
+input_files = sort(list.files(DATA_DIRECTORY))
+
+METRIC_COL = "gmv_euro"
+set.seed(2025)
+result = NULL
+winsorisation_cutoff = quantile(data.table(read_parquet(
+  sprintf("%s/%s", DATA_DIRECTORY, input_files[1])
+))[[METRIC_COL]], 0.99)
+preceeding_data = apply_winsorisation(data.table(read_parquet(
+  sprintf("%s/%s", DATA_DIRECTORY, input_files[2])
+)), METRIC_COL, winsorisation_cutoff)
+for (i in 3:length(input_files)) {
+  increment_std = sqrt(mean(preceeding_data$gmv_euro ^ 2))
+  expected_num_observations = nrow(preceeding_data)
+  # TODO: estimate the expected number of observations for each day to initialise
+  # pSST
+  
+  data = apply_winsorisation(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i])), METRIC_COL, winsorisation_cutoff)
+  print(sprintf("Max(%s) = %.0f", METRIC_COL, max(data[[METRIC_COL]])))
+  data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL)
+  aggregator = Aggregator$new()
+  for (r in 1:NUM_ASSIGNMENT_REPLICATIONS) {
+    print(sprintf("Replication # %.03d", r))
+    trajectory = data_generator$generate_cumulative_difference_trajectory()
+    # the trajectory of the cumulative difference in the revenue between
+    # control and treatment
+    
+    in_period_increment_std = compute_recursive_std(trajectory)
+    in_period_increment_std[1:INCREMENT_STD_NUM_BURN_IN_STEPS] = increment_std
+    continuous_methods = initialise_continuous_methods(increment_std,
+                                                       in_period_increment_std,
+                                                       expected_num_observations)
+    
+    for (statistical_test in continuous_methods) {
+      detection_indicators = statistical_test$monitor(trajectory)
+      # -- continuous monitoring mode
+      aggregator$update(0.0,
+                        "stream",
+                        statistical_test$name,
+                        any(detection_indicators),
+                        0)
+    }
+  }
+  
+  result = aggregator$get_result()
+  
+  preceeding_data = data
+  
+  break
+}
+
+print(result)
