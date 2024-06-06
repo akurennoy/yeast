@@ -1,6 +1,6 @@
-if(!require("data.table", character.only=TRUE)) {
+if(!require("data.table", character.only = TRUE)) {
   install.packages("data.table")
-  library("data.table", character.only=TRUE)
+  library("data.table", character.only = TRUE)
 }
 library(R6)
 
@@ -114,7 +114,7 @@ ResultReporter = R6Class(
       print("Average Sample/Time Savings")
       self$print_main_table(self$AVERAGE_SAVINGS_COL)
     },
-    print_additional_results = function(relative_effect=0.2) {
+    print_additional_results = function(relative_effect = 0.2) {
       row_keys = c(unlist(lapply(self$continuous_methods, function(st)
         st$name)),
         "GST",
@@ -125,7 +125,10 @@ ResultReporter = R6Class(
         "GSTophi3")
       print("Additional Results: False Detection Rate (relative effect = 0.0)")
       print(dcast(self$result[effect == 0.0], method ~ mode, value.var = self$DETECTION_RATE_COL)[J(row_keys)])
-      print(sprintf("Additional Results: Power (relative effect = %.1f)", relative_effect))
+      print(sprintf(
+        "Additional Results: Power (relative effect = %.1f)",
+        relative_effect
+      ))
       print(dcast(self$result[effect == relative_effect], method ~ mode, value.var = self$DETECTION_RATE_COL)[J(row_keys)])
     }
   )
@@ -140,26 +143,26 @@ report = function(result, continuous_methods) {
 }
 
 
-compute_recursive_std = function(observations) {
-  num_observations = length(observations)
-  return(sqrt(
-    (cumsum(observations^2) / 1:num_observations
-     - (cumsum(observations) / 1:num_observations)^2)
-    * 1:num_observations / c(NA, 1:(num_observations - 1))
-  ))
-}
+# compute_recursive_std = function(observations) {
+#   num_observations = length(observations)
+#   return(sqrt(
+#     (cumsum(observations^2) / 1:num_observations
+#      - (cumsum(observations) / 1:num_observations)^2)
+#     * 1:num_observations / c(NA, 1:(num_observations - 1))
+#   ))
+# }
 
 
-test_compute_recursive_std = function() {
-  observations = c(1, 0.5, -1.2)
-  
-  std = numeric(length(observations))
-  
-  for (i in 1:length(observations)) {
-    std[i] = sqrt(var(observations[1:i]))
-  }
-  stopifnot(all.equal(std, compute_recursive_std(observations)))
-}
+# test_compute_recursive_std = function() {
+#   observations = c(1, 0.5, -1.2)
+#
+#   std = numeric(length(observations))
+#
+#   for (i in 1:length(observations)) {
+#     std[i] = sqrt(var(observations[1:i]))
+#   }
+#   stopifnot(all.equal(std, compute_recursive_std(observations)))
+# }
 
 
 # test_compute_recursive_std()
@@ -172,10 +175,61 @@ apply_winsorisation = function(data, col, cutoff) {
 
 
 test_apply_winsorisation = function() {
-  df = apply_winsorisation(data.table(a=c(1, 5, 2), b=c(100, 100, 100)), "a", 4)
+  df = apply_winsorisation(data.table(a = c(1, 5, 2), b = c(100, 100, 100)), "a", 4)
   stopifnot(max(df[, "a"]) == 4)
   stopifnot(max(df[, "b"]) == 100)
 }
 
 
-# test_apply_winsorisation()
+DataCleaner = R6Class(
+  "DataCleaner",
+  public = list(
+    metric_col = NULL,
+    user_id_col = NULL,
+    NUM_EVENTS_COL = "num_events",
+    num_events_cutoff = NULL,
+    event_value_cap = NULL,
+    initialize = function(historical_data,
+                          metric_col,
+                          user_id_col,
+                          q = 0.99) {
+      dt = data.table(historical_data)
+      num_events_dt = dt[, .(num_events = .N), by = user_id_col]
+      setnames(num_events_dt, "num_events", self$NUM_EVENTS_COL)
+      num_events_cutoff = quantile(num_events_dt[, .SD[[self$NUM_EVENTS_COL]]], q)
+      
+      self$metric_col = metric_col
+      self$user_id_col = user_id_col
+      self$num_events_cutoff = 1 # num_events_cutoff
+      self$event_value_cap = quantile(dt[num_events_dt[get(self$NUM_EVENTS_COL) <= num_events_cutoff], on =
+                                           user_id_col][[metric_col]], q)
+    },
+    clean = function(data) {
+      dt = data.table(data, key = self$user_id_col)
+      num_events_dt = dt[, .(num_events = .N), by = eval(self$user_id_col)]
+      setnames(num_events_dt, "num_events", self$NUM_EVENTS_COL)
+      
+      dt = dt[num_events_dt[get(self$NUM_EVENTS_COL) <= self$num_events_cutoff], on =
+                self$user_id_col]
+      return(dt)
+      # return(apply_winsorisation(dt, self$metric_col, self$event_value_cap))
+    }
+  )
+)
+
+
+test = function() {
+  test_apply_winsorisation()
+  
+  dt = data.table(
+    user = c("u1", "u2", "u1", "u1", "u2"),
+    metric = c(99.99, 15.99, 154.00, 100.00, 256.50)
+  )
+  dc = DataCleaner$new(dt, "metric", "user")
+  cleaned_dt = dc$clean(dt)
+  stopifnot(nrow(cleaned_dt) == 2)
+  stopifnot(max(cleaned_dt[, "metric"]) < 256.50)
+}
+
+
+# test()

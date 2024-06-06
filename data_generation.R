@@ -128,7 +128,7 @@ DataGeneratorFromRealEvents = R6Class(
     next_replication_num = 1,
     
     initialize = function(
-      real_events, metric_col, user_id_col="user_id", assignment_batch_size=100
+      real_events, metric_col, user_id_col, assignment_batch_size=100
     ) {
       real_events_data_table = data.table(real_events, key=user_id_col)
       unique_user_ids = unique(real_events_data_table[, ..user_id_col])

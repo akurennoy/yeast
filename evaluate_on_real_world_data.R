@@ -48,7 +48,7 @@ source("utils.R")
 # Global Settings
 
 SIGNIFICANCE_LEVEL = 0.05
-NUM_ASSIGNMENT_REPLICATIONS = 10000 # for each 2-week period
+NUM_ASSIGNMENT_REPLICATIONS = 1000 # for each 2-week period
 DATA_DIRECTORY = "./checkouts"
 INCREMENT_STD_NUM_BURN_IN_STEPS = 100 # when estimating the increment standard
 # deviation recursively from the in-period
@@ -61,74 +61,79 @@ INCREMENT_STD_NUM_BURN_IN_STEPS = 100 # when estimating the increment standard
 initialise_continuous_methods = function(increment_std,
                                          in_period_increment_std,
                                          expected_num_observations) {
-  return(
-    list(
-      # -- SST
-      SST = SST$new(
-        "SST",
-        SIGNIFICANCE_LEVEL,
-        expected_num_observations,
-        increment_std
-      ),
-      # TODO: pass the cumulative expected number of observations per period
-      # and initialise pSST accordingly
-      # # -- pSST
-      # pSST07 = pSST$new("pSST07", SIGNIFICANCE_LEVEL, round((1:7) * (
-      #   expected_num_observations /  7
-      # )), increment_std),
-      # pSST14 = pSST$new("pSST14", SIGNIFICANCE_LEVEL, round((1:14) * (
-      #   expected_num_observations / 14
-      # )), increment_std),
-      # -- mSPRT
-      mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, increment_std, 100),
-      mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, increment_std, 25),
-      mSPRTphi011 = mSPRT$new("mSPRT011", SIGNIFICANCE_LEVEL, increment_std, 1 / 0.3 ^
-                                2),
-      mSPRTphi100 = mSPRT$new(
-        "mSPRT100-i",
-        SIGNIFICANCE_LEVEL,
-        in_period_increment_std,
-        100
-      ),
-      mSPRTphi025 = mSPRT$new(
-        "mSPRT025-i",
-        SIGNIFICANCE_LEVEL,
-        in_period_increment_std,
-        25
-      ),
-      mSPRTphi011 = mSPRT$new(
-        "mSPRT011-i",
-        SIGNIFICANCE_LEVEL,
-        in_period_increment_std,
-        1 / 0.3 ^ 2
-      ),
-      # -- GAVI
-      GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, increment_std, 250),
-      GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, increment_std, 500),
-      GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, increment_std, 750),
-      GAVI250 = GAVI$new(
-        "GAVI250-i",
-        SIGNIFICANCE_LEVEL,
-        in_period_increment_std,
-        250
-      ),
-      GAVI500 = GAVI$new(
-        "GAVI500-i",
-        SIGNIFICANCE_LEVEL,
-        in_period_increment_std,
-        500
-      ),
-      GAVI750 = GAVI$new(
-        "GAVI750-i",
-        SIGNIFICANCE_LEVEL,
-        in_period_increment_std,
-        750
-      ),
-      # -- CAA (Statsig)
-      CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
-      CAA = CAA$new("CAA-i", SIGNIFICANCE_LEVEL, increment_std)
+  return(list(
+    # -- SST
+    SST = SST$new(
+      "SST",
+      SIGNIFICANCE_LEVEL,
+      expected_num_observations,
+      increment_std
+    ),
+    # # TODO: pass the cumulative expected number of observations per period
+    # # and initialise pSST accordingly
+    # # # -- pSST
+    # # pSST07 = pSST$new("pSST07", SIGNIFICANCE_LEVEL, round((1:7) * (
+    # #   expected_num_observations /  7
+    # # )), increment_std),
+    # # pSST14 = pSST$new("pSST14", SIGNIFICANCE_LEVEL, round((1:14) * (
+    # #   expected_num_observations / 14
+    # # )), increment_std),
+    # # -- mSPRT
+    # mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, increment_std, 100),
+    # mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, increment_std, 25),
+    # mSPRTphi011 = mSPRT$new("mSPRT011", SIGNIFICANCE_LEVEL, increment_std, 1 / 0.3 ^
+    #                           2),
+    # mSPRTphi100i = mSPRT$new(
+    #   "mSPRT100-i",
+    #   SIGNIFICANCE_LEVEL,
+    #   in_period_increment_std,
+    #   100
+    # ),
+    # mSPRTphi025i = mSPRT$new(
+    #   "mSPRT025-i",
+    #   SIGNIFICANCE_LEVEL,
+    #   in_period_increment_std,
+    #   25
+    # ),
+    # mSPRTphi011i = mSPRT$new(
+    #   "mSPRT011-i",
+    #   SIGNIFICANCE_LEVEL,
+    #   in_period_increment_std,
+    #   1 / 0.3 ^ 2
+    # ),
+    # # -- GAVI
+    # GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, increment_std, 250),
+    # GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, increment_std, 500),
+    # GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, increment_std, 750),
+    # GAVI250i = GAVI$new(
+    #   "GAVI250-i",
+    #   SIGNIFICANCE_LEVEL,
+    #   in_period_increment_std,
+    #   250
+    # ),
+    # GAVI500i = GAVI$new(
+    #   "GAVI500-i",
+    #   SIGNIFICANCE_LEVEL,
+    #   in_period_increment_std,
+    #   500
+    # ),
+    # GAVI750i = GAVI$new(
+    #   "GAVI750-i",
+    #   SIGNIFICANCE_LEVEL,
+    #   in_period_increment_std,
+    #   750
+    # ),
+    # # -- CAA (Statsig)
+    # CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
+    # CAA = CAA$new("CAA-i", SIGNIFICANCE_LEVEL, increment_std),
+    Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, increment_std, 1),
+    Classicali = Bonferroni$new(
+      "Classical-i",
+      SIGNIFICANCE_LEVEL,
+      in_period_increment_std[length(in_period_increment_std)],
+      1
     )
-  )
+  ))
 }
 
 # Conducting the Evaluation
@@ -139,33 +144,43 @@ initialise_continuous_methods = function(increment_std,
 # 2024-05-12 (without any gaps or overlaps).
 input_files = sort(list.files(DATA_DIRECTORY))
 
+USER_ID_COL = "user_id"
 METRIC_COL = "gmv_euro"
 set.seed(2025)
 result = NULL
-winsorisation_cutoff = quantile(data.table(read_parquet(
-  sprintf("%s/%s", DATA_DIRECTORY, input_files[1])
-))[[METRIC_COL]], 0.99)
-preceeding_data = apply_winsorisation(data.table(read_parquet(
-  sprintf("%s/%s", DATA_DIRECTORY, input_files[2])
-)), METRIC_COL, winsorisation_cutoff)
+data_cleaner = DataCleaner$new(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[1])), METRIC_COL, USER_ID_COL, q=0.9)
+print(sprintf("Will remove users with more than %d orders",
+      data_cleaner$num_events_cutoff))
+# print(sprintf("Will cap %s values at %.2f",
+#       METRIC_COL,
+#       data_cleaner$event_value_cap))
+
+raw_preceeding_data = read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[2]))
+preceeding_data = data_cleaner$clean(raw_preceeding_data)
+
+num_unique_users_before = length(unique(raw_preceeding_data[[USER_ID_COL]]))
+num_unique_users_after = length(unique(preceeding_data[[USER_ID_COL]]))
+print(sprintf("Removed %i users out of %i", num_unique_users_before - num_unique_users_after, num_unique_users_before))
+# stopifnot(max(preceeding_data[[METRIC_COL]]) <= data_cleaner$event_value_cap)
+
 for (i in 3:length(input_files)) {
-  increment_std = sqrt(mean(preceeding_data$gmv_euro ^ 2))
+  increment_std = sqrt(mean(preceeding_data[[METRIC_COL]] ^ 2))
   expected_num_observations = nrow(preceeding_data)
   # TODO: estimate the expected number of observations for each day to initialise
   # pSST
   
-  data = apply_winsorisation(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i])), METRIC_COL, winsorisation_cutoff)
-  print(sprintf("Max(%s) = %.0f", METRIC_COL, max(data[[METRIC_COL]])))
-  data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL)
+  data = data_cleaner$clean(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i])))
+  in_period_increment_std = sqrt(cumsum(data[[METRIC_COL]] ^ 2) / 1:nrow(data))
+  # in_period_increment_std[1:INCREMENT_STD_NUM_BURN_IN_STEPS] = increment_std
+  data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL, USER_ID_COL)
   aggregator = Aggregator$new()
   for (r in 1:NUM_ASSIGNMENT_REPLICATIONS) {
     print(sprintf("Replication # %.03d", r))
     trajectory = data_generator$generate_cumulative_difference_trajectory()
+    # trajectory = cumsum(rnorm(nrow(data), 0, in_period_increment_std[length(in_period_increment_std)]))
     # the trajectory of the cumulative difference in the revenue between
     # control and treatment
     
-    in_period_increment_std = compute_recursive_std(trajectory)
-    in_period_increment_std[1:INCREMENT_STD_NUM_BURN_IN_STEPS] = increment_std
     continuous_methods = initialise_continuous_methods(increment_std,
                                                        in_period_increment_std,
                                                        expected_num_observations)
@@ -189,3 +204,9 @@ for (i in 3:length(input_files)) {
 }
 
 print(result)
+print(result)
+
+# Hypotheses: 1/ different filtering (e.g. users with too many orders in addition to winsorisation);
+#.            2/ ...
+
+# TODO: consider only the first X events from a given user instead of removing those users!
