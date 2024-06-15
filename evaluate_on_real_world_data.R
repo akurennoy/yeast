@@ -82,8 +82,14 @@ initialise_continuous_methods = function(robust_increment_std,
         "pSST14",
         SIGNIFICANCE_LEVEL,
         cumsum(expected_num_observations),
-        increment_std
+        robust_increment_std
       ),
+      # pSST14nr = pSST$new(
+      #   "pSST14-non-robust",
+      #   SIGNIFICANCE_LEVEL,
+      #   cumsum(expected_num_observations),
+      #   non_robust_increment_std
+      # ),
       # -- mSPRT
       mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, robust_increment_std, 100),
       mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, robust_increment_std, 25),
@@ -188,13 +194,17 @@ print(
 )
 
 for (i in 3:length(input_files)) {
-  increment_std = estimate_increment_std(preceeding_data, METRIC_COL, USER_ID_COL)
+  robust_increment_std = estimate_increment_std(preceeding_data, METRIC_COL, USER_ID_COL)
   print(sprintf(
-    "Increment std estimate using preceeding data = %.2f",
-    increment_std
+    "Robust increment std estimate (using preceeding data) = %.2f",
+    robust_increment_std
   ))
+  non_robust_increment_std = sqrt(mean(preceeding_data[[METRIC_COL]]^2))
+  print(sprintf(
+    "Non-robust increment std estimate (using preceeding data) = %.2f",
+    non_robust_increment_std
+  ))  
   expected_num_observations = setorder(preceeding_data[, date := as.Date(as.POSIXct(occurred_at, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))][, .(num_obs = .N), by = date], "date")[["num_obs"]]
-  expected_num_observations = nrow(preceeding_data)
   
   data = data_cleaner$clean(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i])))
   data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL, USER_ID_COL)
@@ -207,8 +217,8 @@ for (i in 3:length(input_files)) {
     # the trajectory of the cumulative difference in the revenue between
     # control and treatment
     
-    continuous_methods = initialise_continuous_methods(increment_std,
-                                                       in_period_increment_std,
+    continuous_methods = initialise_continuous_methods(robust_increment_std,
+                                                       non_robust_increment_std,
                                                        expected_num_observations)
     
     for (statistical_test in continuous_methods) {
