@@ -181,37 +181,122 @@ test_apply_winsorisation = function() {
 }
 
 
+sort_by_time_and_remove_repeated_orders = function(data, metric_col, user_id_col, dttm_col) {
+  data = setorderv(data.table(data), dttm_col)
+  data[, posix_tm := as.POSIXct(get(dttm_col), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")]
+  data[, prev_event_posix_tm := shift(posix_tm, type = "lag"), by = user_id]
+  data[, prev_event_value := shift(get(metric_col), type = "lag"), by = user_id]
+  # TODO: figure out how to use variables in the by clause of data.table
+  #.      to avoid using hard coded column names
+  data[, time_diff_secs := as.numeric(difftime(posix_tm, prev_event_posix_tm, units = "secs"))]
+  return(data[(get(metric_col) != prev_event_value) |
+                ((time_diff_secs > 120) | is.na(time_diff_secs))])
+}
+
+
+test_sort_by_time_and_remove_repeated_orders = function() {
+  data = data.table(
+    user_id = c("u1", "u1", "u2", "u2", "u3", "u3"),
+    metric = c(99.99, 99.99, 256.50, 256.50, 100.00, 99.99),
+    dttm = c(
+      "2023-08-01T10:00:00.146Z",
+      "2023-08-01T09:00:00.146Z",
+      "2023-08-01T11:00:00.146Z",
+      "2023-08-01T11:02:00.146Z",
+      "2023-08-02T09:00:00.146Z",
+      "2023-08-02T09:01:00.146Z"
+    )
+  )
+  df = sort_by_time_and_remove_repeated_orders(data, "metric", "user", "dttm")
+  stopifnot(nrow(df) == 5)
+  stopifnot(all(df$user == c("u1", "u1", "u2", "u3", "u3")))
+}
+
+
+preprocess = function(data,
+                      metric_col,
+                      user_id_col,
+                      dttm_col,
+                      remove_repeated_orders) {
+  if (remove_repeated_orders) {
+    return(
+      sort_by_time_and_remove_repeated_orders(data, metric_col, user_id_col, dttm_col)
+    )
+  } else {
+    return(setorderv(data.table(data), dttm_col))
+  }
+}
+
+
 DataCleaner = R6Class(
   "DataCleaner",
   public = list(
     metric_col = NULL,
     user_id_col = NULL,
-    NUM_EVENTS_COL = "num_events",
-    num_events_cutoff = NULL,
-    event_value_cap = NULL,
+    dttm_col = NULL,
+    # NUM_EVENTS_COL = "num_events",
+    # DTTM_COL = "occurred_at",
+    # PREV_DTTM_COL = "prev_occurred_at",
+    # TIME_DIFF_COL = "time_since_prev_order",
+    # num_events_cutoff = NULL,
+    # event_value_cap = NULL,
+    event_value_cutoff = NULL,
+    remove_repeated_orders = NULL,
     initialize = function(historical_data,
                           metric_col,
                           user_id_col,
+                          dttm_col = "occurred_at",
+                          remove_repeated_orders = FALSE,
                           q = 0.99) {
-      dt = data.table(historical_data)
-      num_events_dt = dt[, .(num_events = .N), by = user_id_col]
-      setnames(num_events_dt, "num_events", self$NUM_EVENTS_COL)
-      num_events_cutoff = quantile(num_events_dt[, .SD[[self$NUM_EVENTS_COL]]], q)
+      # num_events_dt = dt[, .(num_events = .N), by = user_id_col]
+      # setnames(num_events_dt, "num_events", self$NUM_EVENTS_COL)
+      # num_events_cutoff = quantile(num_events_dt[, .SD[[self$NUM_EVENTS_COL]]], q)
+      dt = preprocess(historical_data,
+                      metric_col,
+                      user_id_col,
+                      dttm_col,
+                      remove_repeated_orders)
+      
+      cols = c(user_id_col, metric_col)
+      event_value_dt = dt[, ..cols][, .(metric_sum = sum(get(metric_col))), by = user_id_col]
+      event_value_cutoff = quantile(event_value_dt[, .SD[["metric_sum"]]], q)
       
       self$metric_col = metric_col
       self$user_id_col = user_id_col
-      self$num_events_cutoff = 1 # num_events_cutoff
-      self$event_value_cap = quantile(dt[num_events_dt[get(self$NUM_EVENTS_COL) <= num_events_cutoff], on =
-                                           user_id_col][[metric_col]], q)
+      self$dttm_col = dttm_col
+      self$event_value_cutoff = event_value_cutoff
+      self$remove_repeated_orders = remove_repeated_orders
+      # self$event_value_cap = quantile(dt[num_events_dt[get(self$NUM_EVENTS_COL) <= num_events_cutoff], on =
+      #                                      user_id_col][[metric_col]], q)
     },
     clean = function(data) {
-      dt = data.table(data, key = self$user_id_col)
-      num_events_dt = dt[, .(num_events = .N), by = eval(self$user_id_col)]
-      setnames(num_events_dt, "num_events", self$NUM_EVENTS_COL)
+      dt = preprocess(data,
+                      self$metric_col,
+                      self$user_id,
+                      self$dttm_col,
+                      self$remove_repeated_orders)
+      #[,
+      # c("posix_tm", "prev_event_posix_tm",
+      #   # "prev_event_value",
+      #   "time_diff_secs") := NULL]
+      #]
       
-      dt = dt[num_events_dt[get(self$NUM_EVENTS_COL) <= self$num_events_cutoff], on =
-                self$user_id_col]
-      return(dt)
+      # cols = c(self$user_id_col, self$metric_col)
+      # filtered_users_dt = dt[, ..cols][, .(metric_sum = sum(get(self$metric_col))), by =
+      #                          eval(self$user_id_col)][metric_sum <= self$event_value_cutoff]
+      dt[, metric_cumsum := cumsum(get(self$metric_col)), by = eval(self$user_id_col)]
+      return(dt[metric_cumsum <= self$event_value_cutoff])
+      # # TODO: make this filtering progressive, i.e.
+      # #.      stop collecting data on a user once they pass the total order value
+      # #.      given by the event_value_cutoff
+      # filtered_dt = dt[filtered_users_dt[, metric_sum := NULL], on = self$user_id_col]
+      # print(nrow(filtered_dt))
+      # return(filtered_dt)
+      # num_events_dt = dt[, .(num_events = .N), by = eval(self$user_id_col)]
+      # setnames(num_events_dt, "num_events", self$NUM_EVENTS_COL)
+      #
+      # dt = dt[num_events_dt[get(self$NUM_EVENTS_COL) <= self$num_events_cutoff], on =
+      #           self$user_id_col]
       # return(apply_winsorisation(dt, self$metric_col, self$event_value_cap))
     }
   )
@@ -219,17 +304,52 @@ DataCleaner = R6Class(
 
 
 test = function() {
-  test_apply_winsorisation()
+  # test_apply_winsorisation()
+  
+  # dt = data.table(
+  #   user = c("u1", "u2", "u1", "u1", "u2"),
+  #   metric = c(99.99, 15.99, 154.00, 100.00, 256.50)
+  # )
+  # dc = DataCleaner$new(dt, "metric", "user")
+  # cleaned_dt = dc$clean(dt)
+  # stopifnot(nrow(cleaned_dt) == 2)
+  # stopifnot(max(cleaned_dt[, "metric"]) < 256.50)
+  
+  # dt = data.table(
+  #   user = c("u1", "u2", "u1", "u1", "u2"),
+  #   metric = c(99.99, 15.99, 154.00, 100.00, 256.50)
+  # )
+  # dc = DataCleaner$new(dt, "metric", "user")
+  # cleaned_dt = dc$clean(dt)
+  # stopifnot(nrow(cleaned_dt) == 2)
+  # stopifnot(max(cleaned_dt[, "metric"]) == 256.50)
+  
+  test_sort_by_time_and_remove_repeated_orders()
   
   dt = data.table(
-    user = c("u1", "u2", "u1", "u1", "u2"),
-    metric = c(99.99, 15.99, 154.00, 100.00, 256.50)
+    user_id = c("u1", "u2", "u1", "u1", "u2", "u2"),
+    metric = c(99.99, 99.99, 164.00, 100.00, 256.50, 256.50),
+    dttm = c(
+      "2023-08-01T10:00:00.146Z",
+      "2023-08-01T10:00:00.146Z",
+      "2023-08-01T11:00:00.146Z",
+      "2023-08-01T10:30:00.146Z",
+      "2023-08-02T09:00:00.146Z",
+      "2023-08-02T09:01:00.146Z"
+    )
   )
-  dc = DataCleaner$new(dt, "metric", "user")
+  dc = DataCleaner$new(dt, "metric", "user_id", "dttm", TRUE)
   cleaned_dt = dc$clean(dt)
-  stopifnot(nrow(cleaned_dt) == 2)
-  stopifnot(max(cleaned_dt[, "metric"]) < 256.50)
+  
+  stopifnot(nrow(cleaned_dt) == 4)
+  stopifnot(max(cleaned_dt[, "metric"]) == 256.50)
+  stopifnot(max(cleaned_dt[user_id == "u1", "metric"]) == 100.00)
+  
+  dc = DataCleaner$new(dt, "metric", "user_id", "dttm")
+  cleaned_dt = dc$clean(dt)
+  stopifnot(nrow(cleaned_dt) == 5)
+  stopifnot(max(cleaned_dt[user_id == "u1", "metric"]) == 164.00)
 }
 
 
-# test()
+test()
