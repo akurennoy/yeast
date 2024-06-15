@@ -59,102 +59,96 @@ INCREMENT_STD_NUM_BURN_IN_STEPS = 100 # when estimating the increment standard
 # Definitions
 
 
-initialise_continuous_methods = function(increment_std,
-                                         in_period_increment_std,
+initialise_continuous_methods = function(robust_increment_std,
+                                         non_robust_increment_std,
                                          expected_num_observations) {
-  return(list(
-    # -- SST
-    SST = SST$new(
-      "SST",
-      SIGNIFICANCE_LEVEL,
-      expected_num_observations,
-      increment_std
-    ),
-    # # TODO: pass the cumulative expected number of observations per period
-    # # and initialise pSST accordingly
-    # # # -- pSST
-    # # pSST07 = pSST$new("pSST07", SIGNIFICANCE_LEVEL, round((1:7) * (
-    # #   expected_num_observations /  7
-    # # )), increment_std),
-    # # pSST14 = pSST$new("pSST14", SIGNIFICANCE_LEVEL, round((1:14) * (
-    # #   expected_num_observations / 14
-    # # )), increment_std),
-    # -- mSPRT
-    # mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, increment_std, 100),
-    # mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, increment_std, 25),
-    # mSPRTphi011 = mSPRT$new("mSPRT011", SIGNIFICANCE_LEVEL, increment_std, 1 / 0.3 ^
-    #                           2),
-    # mSPRTphi100i = mSPRT$new(
-    #   "mSPRT100-i",
-    #   SIGNIFICANCE_LEVEL,
-    #   in_period_increment_std,
-    #   100
-    # ),
-    # mSPRTphi025i = mSPRT$new(
-    #   "mSPRT025-i",
-    #   SIGNIFICANCE_LEVEL,
-    #   in_period_increment_std,
-    #   25
-    # ),
-    # mSPRTphi011i = mSPRT$new(
-    #   "mSPRT011-i",
-    #   SIGNIFICANCE_LEVEL,
-    #   in_period_increment_std,
-    #   1 / 0.3 ^ 2
-    # ),
-    # -- GAVI
-    # GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, increment_std, 250),
-    # GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, increment_std, 500),
-    # GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, increment_std, 750),
-    # GAVI250i = GAVI$new(
-    #   "GAVI250-i",
-    #   SIGNIFICANCE_LEVEL,
-    #   in_period_increment_std,
-    #   250
-    # ),
-    # GAVI500i = GAVI$new(
-    #   "GAVI500-i",
-    #   SIGNIFICANCE_LEVEL,
-    #   in_period_increment_std,
-    #   500
-    # ),
-    # GAVI750i = GAVI$new(
-    #   "GAVI750-i",
-    #   SIGNIFICANCE_LEVEL,
-    #   in_period_increment_std,
-    #   750
-    # ),
-    # -- CAA (Statsig)
-    # CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
-    # CAA = CAA$new("CAA-i", SIGNIFICANCE_LEVEL, increment_std),
-    Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, increment_std, 1),
-    Classicali = Bonferroni$new(
-      "Classical-i",
-      SIGNIFICANCE_LEVEL,
-      in_period_increment_std[length(in_period_increment_std)],
-      1
+  return(
+    list(
+      # -- SST
+      SST = SST$new(
+        "SST",
+        SIGNIFICANCE_LEVEL,
+        sum(expected_num_observations),
+        robust_increment_std
+      ),
+      # SSTnr = SST$new(
+      #   "SST-non-robust",
+      #   SIGNIFICANCE_LEVEL,
+      #   expected_num_observations,
+      #   non_robust_increment_std
+      # ),
+      # -- pSST
+      pSST14 = pSST$new(
+        "pSST14",
+        SIGNIFICANCE_LEVEL,
+        cumsum(expected_num_observations),
+        increment_std
+      ),
+      # -- mSPRT
+      mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, robust_increment_std, 100),
+      mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, robust_increment_std, 25),
+      mSPRTphi011 = mSPRT$new(
+        "mSPRT011",
+        SIGNIFICANCE_LEVEL,
+        robust_increment_std,
+        1 / 0.3 ^
+          2
+      ),
+      # mSPRTphi100nr = mSPRT$new(
+      #   "mSPRT100-non-robust",
+      #   SIGNIFICANCE_LEVEL,
+      #   non_robust_increment_std,
+      #   100
+      # ),
+      # mSPRTphi025nr = mSPRT$new(
+      #   "mSPRT025-non-robust",
+      #   SIGNIFICANCE_LEVEL,
+      #   non_robust_increment_std,
+      #   25
+      # ),
+      # mSPRTphi011nr = mSPRT$new(
+      #   "mSPRT011-non-robust",
+      #   SIGNIFICANCE_LEVEL,
+      #   non_robust_increment_std,
+      #   1 / 0.3 ^ 2
+      # ),
+      # -- GAVI
+      GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, robust_increment_std, 250),
+      GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, robust_increment_std, 500),
+      GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, robust_increment_std, 750),
+      # GAVI250nr = GAVI$new("GAVI250-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std, 250),
+      # GAVI500nr = GAVI$new("GAVI500-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std, 500),
+      # GAVI750nr = GAVI$new("GAVI750-non-robuts", SIGNIFICANCE_LEVEL, non_robust_increment_std, 750),
+      # -- CAA (Statsig)
+      CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, robust_increment_std),
+      # CAAnr = CAA$new("CAA-nr", SIGNIFICANCE_LEVEL, non_robust_increment_std),
+      Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, robust_increment_std, 1)
+      # Classicalnr = Bonferroni$new("Classical-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std, 1)
     )
-  ))
+  )
 }
 
 
-estimate_increment_std = function(data, metric_col, user_id_col, sample_size=10000) {
+estimate_increment_std = function(data,
+                                  metric_col,
+                                  user_id_col,
+                                  sample_size = 10000) {
   dg = DataGeneratorFromRealEvents$new(data, metric_col, user_id_col, 1)
   dt = dg$real_events_data_table[, x := gmv_euro * (1 - 2 * a1)]
   dt = dt[, occurred_at := as.POSIXct(occurred_at, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")]
   dt = dt[, date := as.Date(occurred_at)][, hour := hour(occurred_at)]
-  grouped = dt[, .(x = sum(x)), by=.(user_id, date, hour)]
+  grouped = dt[, .(x = sum(x)), by = .(user_id, date, hour)]
   # TODO: take the user id column name from the parameter instead of using
   #.      a hardcoded value in the by parameter
-  users = data.table(user_id=unique(grouped[[user_id_col]]))[sample(.N, sample_size)]
-  subsampled_grouped = grouped[users, on="user_id"]
+  users = data.table(user_id = unique(grouped[[user_id_col]]))[sample(.N, sample_size)]
+  subsampled_grouped = grouped[users, on = "user_id"]
   model <- lm(x ~ 1, data = subsampled_grouped)
   v = (
     vcovCL(model, cluster = subsampled_grouped[[user_id_col]], type = "HC3")[[1]]
     * nrow(subsampled_grouped) / nrow(grouped)
   )
   
-  return(sqrt(v * nrow(grouped)**2 / nrow(dt)))
+  return(sqrt(v * nrow(grouped) ** 2 / nrow(dt)))
 }
 
 
@@ -172,39 +166,44 @@ METRIC_COL = "gmv_euro"
 DTTM_COL = "occurred_at"
 set.seed(2025)
 result = NULL
-data_cleaner = DataCleaner$new(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[1])), METRIC_COL, USER_ID_COL, q=0.9)
-print(sprintf("Will remove users with more than %.2f of total order value.",
-      data_cleaner$event_value_cutoff))
-# print(sprintf("Will cap %s values at %.2f",
-#       METRIC_COL,
-#       data_cleaner$event_value_cap))
+data_cleaner = DataCleaner$new(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[1])), METRIC_COL, USER_ID_COL, DTTM_COL, q =
+                                 0.999)
+print(
+  sprintf(
+    "Will remove users with more than %.2f of total order value.",
+    data_cleaner$event_value_cutoff
+  )
+)
 
 raw_preceeding_data = read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[2]))
 preceeding_data = data_cleaner$clean(raw_preceeding_data)
-
 num_unique_users_before = length(unique(raw_preceeding_data[[USER_ID_COL]]))
 num_unique_users_after = length(unique(preceeding_data[[USER_ID_COL]]))
-print(sprintf("Removed %i users out of %i", num_unique_users_before - num_unique_users_after, num_unique_users_before))
-# stopifnot(max(preceeding_data[[METRIC_COL]]) <= data_cleaner$event_value_cap)
+print(
+  sprintf(
+    "Removed %i users out of %i",
+    num_unique_users_before - num_unique_users_after,
+    num_unique_users_before
+  )
+)
 
 for (i in 3:length(input_files)) {
-  # increment_std = sqrt(mean(preceeding_data[[METRIC_COL]] ^ 2))
   increment_std = estimate_increment_std(preceeding_data, METRIC_COL, USER_ID_COL)
-  print(sprintf("Increment std estimate using preceeding data = %.2f", increment_std))
+  print(sprintf(
+    "Increment std estimate using preceeding data = %.2f",
+    increment_std
+  ))
+  expected_num_observations = setorder(preceeding_data[, date := as.Date(as.POSIXct(occurred_at, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))][, .(num_obs = .N), by = date], "date")[["num_obs"]]
   expected_num_observations = nrow(preceeding_data)
-  # TODO: estimate the expected number of observations for each day to initialise
-  # pSST
   
   data = data_cleaner$clean(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i])))
-  in_period_increment_std = sqrt(cumsum(data[[METRIC_COL]] ^ 2) / 1:nrow(data))
-  # in_period_increment_std = rep(estimate_increment_std(data, METRIC_COL, USER_ID_COL), nrow(data))
-  in_period_increment_std[1:INCREMENT_STD_NUM_BURN_IN_STEPS] = increment_std
   data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL, USER_ID_COL)
   aggregator = Aggregator$new()
   for (r in 1:NUM_ASSIGNMENT_REPLICATIONS) {
-    print(sprintf("Replication # %.03d", r))
+    if (r %% 100 == 0) {
+      print(sprintf("Replication # %.03d", r))
+    }
     trajectory = data_generator$generate_cumulative_difference_trajectory()
-    # trajectory = cumsum(rnorm(nrow(data), 0, in_period_increment_std[length(in_period_increment_std)]))
     # the trajectory of the cumulative difference in the revenue between
     # control and treatment
     
@@ -232,32 +231,3 @@ for (i in 3:length(input_files)) {
 
 print(result)
 print(result)
-
-
-
-
-# estimate_increment_std(preceeding_data, "gmv_euro", "user_id")
-# 
-# user_id_col = "user_id"
-# grouped = data[, .(x = sum(x)), by=.(get(user_id_col), dt)]
-# 
-# w = dc$real_events_data_table[["a1"]]
-# y = dc$real_events_data_table[["gmv_euro"]]
-# x = (1 - 2 * w) * y
-# 
-# model <- lm(x ~ 1, data = grouped)
-# 
-# # Cluster-robust variance estimation
-# # Using vcovCR from the clubSandwich package to get cluster-robust standard errors
-# # cluster_var <- vcovCR(model, cluster = grouped$user_id, type = "CR2")
-# cov_matrix <- vcovHC(model, type = "HC3", cluster = grouped$user_id)
-# print(sqrt(cov_matrix * nrow(grouped)**2 / nrow(data)))
-# # print(sqrt(cov_matrix * nrow(dc$real_events_data_table)))
-# print(sqrt(var(x)))
-# print(summary(m))
-
-
-# Hypotheses: 1/ different filtering (e.g. users with too many orders in addition to winsorisation);
-#.            2/ ...
-
-# TODO: 1/ Try other vcovHC options. 2/ Try the cleaner data
