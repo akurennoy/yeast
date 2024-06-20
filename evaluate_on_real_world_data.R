@@ -3,34 +3,16 @@
 # We will randomly assign users that placed those orders to either control and
 # treatment and then apply the sequential tests to the resulting trajectory of
 # the cumulative revenue difference between the two groups. We will then repeat
-# this multiple times and measure the fraction of times where a detection
-# occurs. Since the users are assigned randomly post-factum and no real
-# treatment gets applied to the treatment group, this fraction should be close
-# to the nominal significance level.
+# this multiple times and measure the number of detections. 
+# Since the users are assigned randomly post-factum and no real
+# treatment gets applied to the treatment group, the relative frequency of
+# detection should be close to the nominal significance level.
 
-# The data is split in 2-week periods. This duration corresponds to a typical
-# experiment duration on the e-commerce platform. We will apply the described
-# procedure to those periods separately and then pool the detection outcomes
-# to compute the detection fraction (false detection rate) across both the
-# 2-week periods and the generated assignments. When applying the sequential
-# testing methods we will set the increment standard deviation to its estimate
-# obtained from the previous 2-week period. GAVI and mSPRT will be additionally
-# evaluated in the mode in which the increment standard deviation is estimated
-# during the monitoring process (using the data arrived so far). The expected
-# number of observations required by SST and pSST methods will also be
-# estimated on the preceeding 2-week period. There are 25 2-week periods in
-# total and we will use 23 of them for evaluation (the first one is used to
-# compute the 99.9% percentile of the total order value which serves as as a cutoff
-# for data filtering that gets applied to all subsequent data; the remaining 24
-# fortnight periods are used in such a way that the input parameters mentioned
-# above are estimated on the preceeding period, hence we leave the first of the
-# 24 periods out, which leaves us with 23 periods for the evaluation).
-# For each of the 2-week periods we will generate the random assignments 100
-# times and will have 2400 cumulative revenue trajectories to "monitor" and
-# measure the false detection rate.
 
 library(arrow)
+library(parallel)
 library(sandwich)
+library(stringr)
 
 source("data_generation.R")
 source("methods/bonferroni.R")
@@ -47,13 +29,9 @@ source("utils.R")
 
 
 SIGNIFICANCE_LEVEL = 0.05
-NUM_ASSIGNMENT_REPLICATIONS = 1000 # for each 2-week period
+NUM_ASSIGNMENT_REPLICATIONS = 10000 # for each evaluation period
 DATA_DIRECTORY = "./checkouts"
-INCREMENT_STD_NUM_BURN_IN_STEPS = 100 # when estimating the increment standard
-# deviation recursively from the in-period
-# this number of initial estimates will
-# be substituted with the estimate
-# computed from the previous period data
+OUTPUT_DIRECTORY = "./results"
 
 
 # Definitions
@@ -61,77 +39,99 @@ INCREMENT_STD_NUM_BURN_IN_STEPS = 100 # when estimating the increment standard
 
 initialise_continuous_methods = function(robust_increment_std,
                                          non_robust_increment_std,
-                                         expected_num_observations) {
-  return(
-    list(
-      # -- SST
-      SST = SST$new(
-        "SST",
-        SIGNIFICANCE_LEVEL,
-        sum(expected_num_observations),
-        robust_increment_std
-      ),
-      # SSTnr = SST$new(
-      #   "SST-non-robust",
-      #   SIGNIFICANCE_LEVEL,
-      #   expected_num_observations,
-      #   non_robust_increment_std
-      # ),
-      # -- pSST
-      pSST14 = pSST$new(
-        "pSST14",
-        SIGNIFICANCE_LEVEL,
-        cumsum(expected_num_observations),
-        robust_increment_std
-      ),
-      # pSST14nr = pSST$new(
-      #   "pSST14-non-robust",
-      #   SIGNIFICANCE_LEVEL,
-      #   cumsum(expected_num_observations),
-      #   non_robust_increment_std
-      # ),
-      # -- mSPRT
-      mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, robust_increment_std, 100),
-      mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, robust_increment_std, 25),
-      mSPRTphi011 = mSPRT$new(
-        "mSPRT011",
-        SIGNIFICANCE_LEVEL,
-        robust_increment_std,
-        1 / 0.3 ^
-          2
-      ),
-      # mSPRTphi100nr = mSPRT$new(
-      #   "mSPRT100-non-robust",
-      #   SIGNIFICANCE_LEVEL,
-      #   non_robust_increment_std,
-      #   100
-      # ),
-      # mSPRTphi025nr = mSPRT$new(
-      #   "mSPRT025-non-robust",
-      #   SIGNIFICANCE_LEVEL,
-      #   non_robust_increment_std,
-      #   25
-      # ),
-      # mSPRTphi011nr = mSPRT$new(
-      #   "mSPRT011-non-robust",
-      #   SIGNIFICANCE_LEVEL,
-      #   non_robust_increment_std,
-      #   1 / 0.3 ^ 2
-      # ),
-      # -- GAVI
-      GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, robust_increment_std, 250),
-      GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, robust_increment_std, 500),
-      GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, robust_increment_std, 750),
-      # GAVI250nr = GAVI$new("GAVI250-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std, 250),
-      # GAVI500nr = GAVI$new("GAVI500-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std, 500),
-      # GAVI750nr = GAVI$new("GAVI750-non-robuts", SIGNIFICANCE_LEVEL, non_robust_increment_std, 750),
-      # -- CAA (Statsig)
-      CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, robust_increment_std),
-      # CAAnr = CAA$new("CAA-nr", SIGNIFICANCE_LEVEL, non_robust_increment_std),
-      Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, robust_increment_std, 1)
-      # Classicalnr = Bonferroni$new("Classical-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std, 1)
+                                         expected_num_observations,
+                                         actual_num_observations) {
+  return(list(
+    # -- SST
+    SST = SST$new(
+      "SST",
+      SIGNIFICANCE_LEVEL,
+      sum(expected_num_observations),
+      robust_increment_std
+    ),
+    SSTnr = SST$new(
+      "SST-non-robust",
+      SIGNIFICANCE_LEVEL,
+      sum(expected_num_observations),
+      non_robust_increment_std
+    ),
+    # -- pSST
+    pSST14 = pSST$new(
+      "pSST14",
+      SIGNIFICANCE_LEVEL,
+      cumsum(expected_num_observations),
+      robust_increment_std,
+      cumsum(actual_num_observations)
+    ),
+    pSST14nr = pSST$new(
+      "pSST14-non-robust",
+      SIGNIFICANCE_LEVEL,
+      cumsum(expected_num_observations),
+      non_robust_increment_std,
+      cumsum(actual_num_observations)
+    ),
+    # -- mSPRT
+    mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, robust_increment_std, 100),
+    mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, robust_increment_std, 25),
+    mSPRTphi011 = mSPRT$new(
+      "mSPRT011",
+      SIGNIFICANCE_LEVEL,
+      robust_increment_std,
+      1 / 0.3 ^
+        2
+    ),
+    mSPRTphi100nr = mSPRT$new(
+      "mSPRT100-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      100
+    ),
+    mSPRTphi025nr = mSPRT$new(
+      "mSPRT025-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      25
+    ),
+    mSPRTphi011nr = mSPRT$new(
+      "mSPRT011-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      1 / 0.3 ^ 2
+    ),
+    # -- GAVI
+    GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, robust_increment_std, 250),
+    GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, robust_increment_std, 500),
+    GAVI750 = GAVI$new("GAVI750", SIGNIFICANCE_LEVEL, robust_increment_std, 750),
+    GAVI250nr = GAVI$new(
+      "GAVI250-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      250
+    ),
+    GAVI500nr = GAVI$new(
+      "GAVI500-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      500
+    ),
+    GAVI750nr = GAVI$new(
+      "GAVI750-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      750
+    ),
+    # -- CAA (Statsig)
+    CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, robust_increment_std),
+    CAAnr = CAA$new("CAA-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std),
+    # -- Classical (a z-test conducted once at the end of the experiment)
+    Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, robust_increment_std, 1),
+    Classicalnr = Bonferroni$new(
+      "Classical-non-robust",
+      SIGNIFICANCE_LEVEL,
+      non_robust_increment_std,
+      1
     )
-  )
+  ))
 }
 
 
@@ -158,68 +158,115 @@ estimate_increment_std = function(data,
 }
 
 
+estimate_expected_number_of_orders = function(data) {
+  return(setorder(data[, date := as.Date(as.POSIXct(occurred_at, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))][, .(num_obs = .N), by = date], "date")[["num_obs"]])
+}
+
+
 # Conducting the Evaluation
 
-
-# Each input file contains orders placed within a 2-week period. The order
-# of the file names corresponds to the chronological order of the 2-week period.
-# There are 25 files in total covering the time frame between 2023-05-23 and
-# 2024-05-12 (without any gaps or overlaps).
 input_files = sort(list.files(DATA_DIRECTORY))
 
 USER_ID_COL = "user_id"
 METRIC_COL = "gmv_euro"
 DTTM_COL = "occurred_at"
-set.seed(2025)
-result = NULL
-data_cleaner = DataCleaner$new(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[1])), METRIC_COL, USER_ID_COL, DTTM_COL, q =
-                                 0.999)
-print(
-  sprintf(
-    "Will remove users with more than %.2f of total order value.",
-    data_cleaner$event_value_cutoff
+
+system(sprintf("mkdir -p %s", OUTPUT_DIRECTORY))
+
+num_cores = detectCores() - 1
+cl = makeCluster(num_cores)
+
+print(num_cores)
+
+clusterExport(
+  cl,
+  varlist=c(
+    "DATA_DIRECTORY",
+    "METRIC_COL",
+    "USER_ID_COL",
+    "DTTM_COL",
+    "input_files",
+    "DataCleaner",
+    "estimate_increment_std",
+    "estimate_expected_number_of_orders",
+    "generate_assignments",
+    "DataGeneratorFromRealEvents",
+    "Aggregator",
+    "initialise_continuous_methods",
+    "SequentialTest",
+    "Bonferroni",
+    "SST",
+    "ell",
+    "compute_convolution",
+    "estimate_false_detection_rate_bound",
+    "compute_pSST_thresholds",
+    "pSST",
+    "GAVI",
+    "mSPRT",
+    "CAA",
+    "NUM_ASSIGNMENT_REPLICATIONS",
+    "SIGNIFICANCE_LEVEL",
+    "OUTPUT_DIRECTORY"
   )
 )
 
-raw_preceeding_data = read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[2]))
-preceeding_data = data_cleaner$clean(raw_preceeding_data)
-num_unique_users_before = length(unique(raw_preceeding_data[[USER_ID_COL]]))
-num_unique_users_after = length(unique(preceeding_data[[USER_ID_COL]]))
-print(
-  sprintf(
-    "Removed %i users out of %i",
-    num_unique_users_before - num_unique_users_after,
-    num_unique_users_before
-  )
-)
 
-for (i in 3:length(input_files)) {
+process_file = function(i) {
+  library(arrow)
+  library(data.table)
+  library(sandwich)
+  library(mvtnorm)
+  library(stats)
+  
+  set.seed(2024 + i)
+  
+  raw_preceeding_data = read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i - 1]))
+  data_cleaner = DataCleaner$new(raw_preceeding_data, METRIC_COL, USER_ID_COL, DTTM_COL, q =
+                                   0.999)
+  # print(sprintf(
+  #   "Total order value cutoff = %.2f",
+  #   data_cleaner$event_value_cutoff
+  # ))
+  preceeding_data = data_cleaner$clean(raw_preceeding_data)
+  # num_unique_users_before = length(unique(raw_preceeding_data[[USER_ID_COL]]))
+  # num_unique_users_after = length(unique(preceeding_data[[USER_ID_COL]]))
+  
   robust_increment_std = estimate_increment_std(preceeding_data, METRIC_COL, USER_ID_COL)
-  print(sprintf(
-    "Robust increment std estimate (using preceeding data) = %.2f",
-    robust_increment_std
-  ))
-  non_robust_increment_std = sqrt(mean(preceeding_data[[METRIC_COL]]^2))
-  print(sprintf(
-    "Non-robust increment std estimate (using preceeding data) = %.2f",
-    non_robust_increment_std
-  ))  
-  expected_num_observations = setorder(preceeding_data[, date := as.Date(as.POSIXct(occurred_at, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))][, .(num_obs = .N), by = date], "date")[["num_obs"]]
+  # print(
+  #   sprintf(
+  #     "Robust increment std estimate (using preceeding data) = %.2f",
+  #     robust_increment_std
+  #   )
+  # )
+  non_robust_increment_std = sqrt(mean(preceeding_data[[METRIC_COL]] ^ 2))
+  # print(
+  #   sprintf(
+  #     "Non-robust increment std estimate (using preceeding data) = %.2f",
+  #     non_robust_increment_std
+  #   )
+  # )
+  expected_num_observations = estimate_expected_number_of_orders(preceeding_data)
   
   data = data_cleaner$clean(read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i])))
+  actual_num_observations = estimate_expected_number_of_orders(data)
+  
   data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL, USER_ID_COL)
   aggregator = Aggregator$new()
+  
+  continuous_methods = initialise_continuous_methods(
+    robust_increment_std,
+    non_robust_increment_std,
+    expected_num_observations,
+    actual_num_observations
+  )
+  
   for (r in 1:NUM_ASSIGNMENT_REPLICATIONS) {
-    if (r %% 100 == 0) {
-      print(sprintf("Replication # %.03d", r))
-    }
+    #   if (r %% 100 == 0) {
+    #     print(sprintf("Replication # %.04d", r))
+    #   }
     trajectory = data_generator$generate_cumulative_difference_trajectory()
     # the trajectory of the cumulative difference in the revenue between
     # control and treatment
-    
-    continuous_methods = initialise_continuous_methods(robust_increment_std,
-                                                       non_robust_increment_std,
-                                                       expected_num_observations)
     
     for (statistical_test in continuous_methods) {
       detection_indicators = statistical_test$monitor(trajectory)
@@ -233,11 +280,50 @@ for (i in 3:length(input_files)) {
   }
   
   result = aggregator$get_result()
+  output_file_name = paste(strsplit(input_files[i], ".parquet"), ".csv", sep =
+                             "")
+  write.csv(result,
+            paste(OUTPUT_DIRECTORY, output_file_name, sep = "/"),
+            row.names = FALSE)
   
-  preceeding_data = data
-  
-  break
+  return(result)
 }
 
-print(result)
-print(result)
+results = parLapply(cl, 15:24, process_file)
+
+# Stop the cluster
+stopCluster(cl)
+
+# Aggregating the results
+
+# List all files in the directory
+files = list.files(OUTPUT_DIRECTORY, full.names = TRUE)
+
+# Read and combine all CSV files into a single data.table
+df = rbindlist(lapply(files, function(file) fread(file) %>% .[, file := basename(file)]))
+
+# Group by 'method' and calculate the mean detection rate
+fdr_dt = df[, .(detection_rate = mean(detection_rate, na.rm = TRUE)), by = method]
+
+# Add a 'variance_estimate' column based on the method name
+fdr_dt[, `:=`(
+  variance_estimate = ifelse(grepl("non-robust$", method), "non-robust", "robust"),
+  method = str_split_fixed(method, "-", 2)[, 1]
+)]
+
+result_dt = dcast(fdr_dt, method ~ variance_estimate, value.var = "detection_rate")
+
+# Round the values to 2 decimal places
+result_dt[, `:=`(
+  robust = round(robust, 2),
+  `non-robust` = round(`non-robust`, 2)
+)]
+
+methods = c(
+  "SST", "pSST14", "GAVI250", "GAVI500", "GAVI750",
+  "mSPRT100", "mSPRT011", "mSPRT025",
+  "GAVI250", "GAVI500", "GAVI750",
+  "CAA", "Classical"
+)
+
+print(result_dt[methods, c("method", "robust", "non-robust")])

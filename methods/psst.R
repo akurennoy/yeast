@@ -87,26 +87,31 @@ pSST = R6Class(
   inherit = SequentialTest,
   public = list(
     significance_level = NULL,
-    expected_cumulative_num_observations_by_period = NULL,
-    # an array with K elements where K is the number of periods;
-    # contains the cumulative sum of the expected number of observations
-    # for each period
+    actual_cumulative_num_observations_by_period = NULL,
     increment_std = NULL,
     thresholds = NULL,
     initialize = function(name,
                           significance_level,
                           expected_cumulative_num_observations_by_period,
-                          increment_std) {
+                          # an array with K elements where K is the number of periods;
+                          # contains the cumulative sum of the expected number of observations
+                          # for each period
+                          increment_std,
+                          actual_cumulative_num_observations_by_period =
+                            NULL) {
       super$initialize(name)
       self$significance_level = significance_level
-      self$expected_cumulative_num_observations_by_period =
-        expected_cumulative_num_observations_by_period
       self$increment_std = increment_std
       self$thresholds = compute_pSST_thresholds(
         expected_cumulative_num_observations_by_period,
         increment_std,
         significance_level
       )  # obtaining the thresholds - one for each period
+      if (is.null(actual_cumulative_num_observations_by_period)) {
+        self$actual_cumulative_num_observations_by_period = expected_cumulative_num_observations_by_period
+      } else {
+        self$actual_cumulative_num_observations_by_period = actual_cumulative_num_observations_by_period
+      }
     },
     monitor_ = function(trajectory,
                         actual_cumulative_num_observations_by_period) {
@@ -126,12 +131,10 @@ pSST = R6Class(
       return(trajectory > boundary)
     },
     monitor = function(trajectory) {
-      return(
-        self$monitor_(
-          trajectory,
-          self$expected_cumulative_num_observations_by_period
-        )
-      )
+      return(self$monitor_(
+        trajectory,
+        self$actual_cumulative_num_observations_by_period
+      ))
     }
   )
 )
@@ -141,7 +144,7 @@ pSST = R6Class(
 # print(round(measure_fdr(
 #   pSST$new("pSST7", 0.05, round((1:7) * (500 / 7)), 10), 10, 500, 1000
 # ), 2))
-#
+# 
 # set.seed(2024)
 # print(round(measure_fdr(
 #   pSST$new("pSST14", 0.05, round((1:14) * (500 / 14)), 10), 10, 500, 1000
