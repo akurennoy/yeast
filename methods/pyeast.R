@@ -61,7 +61,7 @@ estimate_false_detection_rate_bound = function(cumulative_num_observations_by_pe
 }
 
 
-compute_pSST_thresholds = function(expected_cumulative_num_observations_by_period,
+compute_pYEAST_thresholds = function(expected_cumulative_num_observations_by_period,
                                    increment_std,
                                    significance_level) {
   thresholds = (
@@ -82,8 +82,8 @@ compute_pSST_thresholds = function(expected_cumulative_num_observations_by_perio
 }
 
 
-pSST = R6Class(
-  "pSST",
+pYEAST = R6Class(
+  "pYEAST",
   inherit = SequentialTest,
   public = list(
     significance_level = NULL,
@@ -102,7 +102,7 @@ pSST = R6Class(
       super$initialize(name)
       self$significance_level = significance_level
       self$increment_std = increment_std
-      self$thresholds = compute_pSST_thresholds(
+      self$thresholds = compute_pYEAST_thresholds(
         expected_cumulative_num_observations_by_period,
         increment_std,
         significance_level
@@ -142,10 +142,10 @@ pSST = R6Class(
 
 # set.seed(2024)
 # print(round(measure_fdr(
-#   pSST$new("pSST7", 0.05, round((1:7) * (500 / 7)), 10), 10, 500, 1000
+#   pYEAST$new("pYEAST7", 0.05, round((1:7) * (500 / 7)), 10), 10, 500, 1000
 # ), 2))
 # 
 # set.seed(2024)
 # print(round(measure_fdr(
-#   pSST$new("pSST14", 0.05, round((1:14) * (500 / 14)), 10), 10, 500, 1000
+#   pYEAST$new("pYEAST14", 0.05, round((1:14) * (500 / 14)), 10), 10, 500, 1000
 # ), 2))

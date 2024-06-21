@@ -4,8 +4,8 @@ source("methods/caa.R")
 source("methods/gavi.R")
 source("methods/gst.R")
 source("methods/msprt.R")
-source("methods/psst.R")
-source("methods/sst.R")
+source("methods/pyeast.R")
+source("methods/yeast")
 source("utils.R")
 
 
@@ -25,11 +25,11 @@ EFFECT_SIZES = c(0.0, 0.1, 0.2, 0.3, 0.4)
 
 increment_std = sqrt(2) * EVENT_VALUE_STD
 continuous_methods = list(
-  # -- SST
-  SST = SST$new("SST", SIGNIFICANCE_LEVEL, NUM_OBSERVATIONS, increment_std),
-  # -- pSST
-  pSST07 = pSST$new("pSST07", SIGNIFICANCE_LEVEL, round((1:7) * (NUM_OBSERVATIONS /  7)), increment_std),
-  pSST14 = pSST$new("pSST14", SIGNIFICANCE_LEVEL, round((1:14) * (
+  # -- YEAST
+  YEAST = YEAST$new("YEAST", SIGNIFICANCE_LEVEL, NUM_OBSERVATIONS, increment_std),
+  # -- pYEAST
+  pYEAST07 = pYEAST$new("pYEAST07", SIGNIFICANCE_LEVEL, round((1:7) * (NUM_OBSERVATIONS /  7)), increment_std),
+  pYEAST14 = pYEAST$new("pYEAST14", SIGNIFICANCE_LEVEL, round((1:14) * (
     NUM_OBSERVATIONS / 14
   )), increment_std),
   # -- mSPRT

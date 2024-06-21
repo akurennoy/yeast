@@ -20,8 +20,8 @@ source("methods/caa.R")
 source("methods/gavi.R")
 source("methods/gst.R")
 source("methods/msprt.R")
-source("methods/psst.R")
-source("methods/sst.R")
+source("methods/yeast.R")
+source("methods/pyeast.R")
 source("utils.R")
 
 
@@ -42,29 +42,29 @@ initialise_continuous_methods = function(robust_increment_std,
                                          expected_num_observations,
                                          actual_num_observations) {
   return(list(
-    # -- SST
-    SST = SST$new(
-      "SST",
+    # -- YEAST
+    YEAST = YEAST$new(
+      "YEAST",
       SIGNIFICANCE_LEVEL,
       sum(expected_num_observations),
       robust_increment_std
     ),
-    SSTnr = SST$new(
-      "SST-non-robust",
+    YEASTnr = YEAST$new(
+      "YEAST-non-robust",
       SIGNIFICANCE_LEVEL,
       sum(expected_num_observations),
       non_robust_increment_std
     ),
-    # -- pSST
-    pSST14 = pSST$new(
-      "pSST14",
+    # -- pYEAST
+    pYEAST14 = pYEAST$new(
+      "pYEAST14",
       SIGNIFICANCE_LEVEL,
       cumsum(expected_num_observations),
       robust_increment_std,
       cumsum(actual_num_observations)
     ),
-    pSST14nr = pSST$new(
-      "pSST14-non-robust",
+    pYEAST14nr = pYEAST$new(
+      "pYEAST14-non-robust",
       SIGNIFICANCE_LEVEL,
       cumsum(expected_num_observations),
       non_robust_increment_std,
@@ -197,12 +197,12 @@ clusterExport(
     "initialise_continuous_methods",
     "SequentialTest",
     "Bonferroni",
-    "SST",
+    "YEAST",
     "ell",
     "compute_convolution",
     "estimate_false_detection_rate_bound",
-    "compute_pSST_thresholds",
-    "pSST",
+    "compute_pYEAST_thresholds",
+    "pYEAST",
     "GAVI",
     "mSPRT",
     "CAA",
@@ -322,7 +322,7 @@ result_dt[, `:=`(
 )]
 
 methods = c(
-  "SST", "pSST14", "GAVI250", "GAVI500", "GAVI750",
+  "YEAST", "pYEAST14", "GAVI250", "GAVI500", "GAVI750",
   "mSPRT100", "mSPRT011", "mSPRT025",
   "GAVI250", "GAVI500", "GAVI750",
   "CAA", "Classical"

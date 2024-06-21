@@ -2,8 +2,8 @@ source("methods/sequential_test.R")
 source("utils.R")
 
 
-SST = R6Class(
-  "SST",
+YEAST = R6Class(
+  "YEAST",
   inherit = SequentialTest,
   public = list(
     significance_level = NULL,
@@ -32,4 +32,4 @@ SST = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(SST$new("SST", 0.05, 500, 10), 10, 500, 1000), 2))
+# print(round(measure_fdr(YEAST$new("YEAST", 0.05, 500, 10), 10, 500, 1000), 2))
