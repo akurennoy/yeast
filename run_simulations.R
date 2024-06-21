@@ -5,7 +5,7 @@ source("methods/gavi.R")
 source("methods/gst.R")
 source("methods/msprt.R")
 source("methods/pyeast.R")
-source("methods/yeast")
+source("methods/yeast.R")
 source("utils.R")
 
 
