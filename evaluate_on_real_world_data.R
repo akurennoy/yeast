@@ -167,6 +167,8 @@ estimate_expected_number_of_orders = function(data) {
 
 input_files = sort(list.files(DATA_DIRECTORY))
 
+stopifnot(length(input_files) >= 2)
+
 USER_ID_COL = "user_id"
 METRIC_COL = "gmv_euro"
 DTTM_COL = "occurred_at"
@@ -218,7 +220,7 @@ process_file = function(i) {
   library(mvtnorm)
   library(stats)
   
-  set.seed(2024 + i)
+  set.seed(2024 + i - 1)
   
   raw_preceeding_data = read_parquet(sprintf("%s/%s", DATA_DIRECTORY, input_files[i - 1]))
   data_cleaner = DataCleaner$new(raw_preceeding_data, METRIC_COL, USER_ID_COL, DTTM_COL, q =
@@ -289,7 +291,7 @@ process_file = function(i) {
   return(result)
 }
 
-results = parLapply(cl, 1:10, process_file)
+results = parLapply(cl, 2:length(input_files), process_file)
 
 # Stop the cluster
 stopCluster(cl)
