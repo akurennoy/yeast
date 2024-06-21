@@ -289,7 +289,7 @@ process_file = function(i) {
   return(result)
 }
 
-results = parLapply(cl, 15:24, process_file)
+results = parLapply(cl, 1:10, process_file)
 
 # Stop the cluster
 stopCluster(cl)
