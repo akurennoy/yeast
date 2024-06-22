@@ -192,21 +192,18 @@ run_experiment = function(seed,
       }
     }
   }
-  return(aggregator$get_result())
+  result = aggregator$get_result()
+  report(result, methods$continuous_methods)
+  return(result)
 }
 
 
 print("MAIN EXPERIMENT")
-result = run_experiment(
-  8163,
-  # This is the seed value used in ref. [1].
-  # We will use it for the normal event value distribution
-  # to reproduce the results of ref. [1].
-  NormalEventValueGenerator$new(1, 1),
-  1
-)
+result = run_experiment(8163, # This is the seed value used in ref. [1].
+                        # We will use it for the normal event value distribution
+                        # to reproduce the results of ref. [1].
+                        NormalEventValueGenerator$new(1, 1), 1)
 write.csv(result, "normal.csv", row.names = FALSE)
-report(result, continuous_methods)
 
 print("EXPERIMENTS WITH NON-NORMAL DATA")
 
@@ -217,16 +214,10 @@ print("EXPERIMENTS WITH NON-NORMAL DATA")
 # The parameters of the non-normal distributions were set to match the
 # coefficient of variation of the normal distribution used in ref [1].
 
-result = run_experiment(
-  2023,
-  ShiftedStudentEventValueGenerator$new(sqrt(3), 3),
-  sqrt(3)
-)
+result = run_experiment(2023,
+                        ShiftedStudentEventValueGenerator$new(sqrt(3), 3),
+                        sqrt(3))
 write.csv(result, "student.csv", row.names = FALSE)
-report(result, continuous_methods)
 
-result = run_experiment(2024,
-                        GammaEventValueGenerator$new(1, 2),
-                        2)
+result = run_experiment(2024, GammaEventValueGenerator$new(1, 2), 2)
 write.csv(result, "gamma.csv", row.names = FALSE)
-report(result, continuous_methods)
