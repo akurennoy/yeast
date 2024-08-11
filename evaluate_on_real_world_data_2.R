@@ -13,6 +13,7 @@ library(arrow)
 library(parallel)
 library(sandwich)
 library(stringr)
+library(xtable)
 
 source("data_generation.R")
 source("methods/bonferroni.R")
@@ -301,7 +302,9 @@ results = parLapply(cl, 2:length(input_files), process_file)
 
 stopCluster(cl)
 
+
 # Aggregating the results
+
 
 files = list.files(OUTPUT_DIRECTORY, full.names = TRUE)
 
@@ -361,8 +364,4 @@ methods = c(
 
 print(result_dt[methods, c("method", "robust", "non-robust")])
 
-
-# library(xtable)
-#
-#
-# print(xtable(result_dt[methods, c("method", "robust", "non-robust")]))
+print(xtable(result_dt[methods, c("method", "robust", "non-robust")]))
