@@ -32,12 +32,6 @@ setup_methods = function(event_value_std) {
       NUM_OBSERVATIONS,
       increment_std
     ),
-    YEASTn105 = YEAST$new(
-      "YEASTn105",
-      SIGNIFICANCE_LEVEL,
-      as.integer(NUM_OBSERVATIONS * 1.05),
-      increment_std
-    ),
     YEASTn110 = YEAST$new(
       "YEASTn110",
       SIGNIFICANCE_LEVEL,
@@ -48,6 +42,18 @@ setup_methods = function(event_value_std) {
       "YEASTn120",
       SIGNIFICANCE_LEVEL,
       as.integer(NUM_OBSERVATIONS * 1.20),
+      increment_std
+    ),
+    YEASTn80 = YEAST$new(
+      "YEASTn80",
+      SIGNIFICANCE_LEVEL,
+      as.integer(NUM_OBSERVATIONS * 0.80),
+      increment_std
+    ),
+    YEASTn90 = YEAST$new(
+      "YEASTn90",
+      SIGNIFICANCE_LEVEL,
+      as.integer(NUM_OBSERVATIONS * 0.90),
       increment_std
     ),
     # -- pYEAST
