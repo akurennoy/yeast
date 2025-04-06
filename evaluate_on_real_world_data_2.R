@@ -199,6 +199,7 @@ clusterExport(
     "estimate_increment_std",
     "estimate_expected_number_of_orders",
     "generate_assignments",
+    "DataFromRealEvents",
     "DataGeneratorFromRealEvents",
     "Aggregator",
     "initialise_continuous_methods",
@@ -273,7 +274,7 @@ process_file = function(i) {
     #   if (r %% 100 == 0) {
     #     print(sprintf("Replication # %.04d", r))
     #   }
-    trajectory = data_generator$generate_cumulative_difference_trajectory()
+    trajectory = data_generator$generate_cumulative_difference_trajectory()$trajectory
     # the trajectory of the cumulative difference in the revenue between
     # control and treatment
     

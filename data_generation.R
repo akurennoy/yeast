@@ -86,29 +86,44 @@ DataGenerator = R6Class(
 )
 
 
-generate_assignments = function(
-    unique_user_ids, batch_size, user_id_col, assignment_col_names
-) {
+generate_assignments = function(unique_user_ids,
+                                batch_size,
+                                user_id_col,
+                                assignment_col_names) {
   assignments = data.table(cbind(
     unique_user_ids,
     matrix(
-      sample(
-        c(0, 1),
-        # 0 - control, 1 - treatment
-        nrow(unique_user_ids) * batch_size,
-        replace = TRUE
-      ),
+      sample(c(0, 1), # 0 - control, 1 - treatment
+             nrow(unique_user_ids) * batch_size, replace = TRUE),
       nrow = nrow(unique_user_ids),
       ncol = batch_size
     )
   ))
-  setnames(assignments, c(
-    user_id_col,
-    assignment_col_names
-  ))
+  setnames(assignments, c(user_id_col, assignment_col_names))
   setkeyv(assignments, user_id_col)
   return(assignments)
 }
+
+
+DataFromRealEvents = R6Class(
+  "DataFromRealEvents",
+  public = list(
+    trajectory = NULL,
+    signed_event_values = NULL,
+    assignment_indicators = NULL,
+    user_ids = NULL,
+    
+    initialize = function(
+    trajectory, signed_event_values, assignment_indicators, user_ids
+    ) {
+      self$trajectory = trajectory
+      self$signed_event_values = signed_event_values
+      self$assignment_indicators = assignment_indicators
+      self$user_ids = user_ids
+    }
+  )
+)
+
 
 DataGeneratorFromRealEvents = R6Class(
   "DataGeneratorFromRealEvents",
@@ -121,24 +136,25 @@ DataGeneratorFromRealEvents = R6Class(
     ASSIGNMENT_REPLICATION_COL_PREFIX = "a",
     assignment_batch_size = NULL,
     assignment_col_names = NULL,
-
-    unique_user_ids = NULL,    
+    
+    unique_user_ids = NULL,
     real_events_data_table = NULL,
     
     next_replication_num = 1,
     
-    initialize = function(
-      real_events, metric_col, user_id_col, assignment_batch_size=100
-    ) {
-      real_events_data_table = data.table(real_events, key=user_id_col)
+    initialize = function(real_events,
+                          metric_col,
+                          user_id_col,
+                          assignment_batch_size = 100,
+                          relative_effect = 0.0) {
+      real_events_data_table = data.table(real_events, key = user_id_col)
       unique_user_ids = unique(real_events_data_table[, ..user_id_col])
-      assignment_col_names = paste0(
-        self$ASSIGNMENT_REPLICATION_COL_PREFIX,
-        1:assignment_batch_size
-      )
-      assignments = generate_assignments(
-        unique_user_ids, assignment_batch_size, user_id_col, assignment_col_names
-      )
+      assignment_col_names = paste0(self$ASSIGNMENT_REPLICATION_COL_PREFIX,
+                                    1:assignment_batch_size)
+      assignments = generate_assignments(unique_user_ids,
+                                         assignment_batch_size,
+                                         user_id_col,
+                                         assignment_col_names)
       self$assignment_batch_size = assignment_batch_size
       self$assignment_col_names = assignment_col_names
       self$real_events_data_table = setorderv(real_events_data_table[assignments], self$DTTM_COL)
@@ -149,15 +165,19 @@ DataGeneratorFromRealEvents = R6Class(
     
     replicate_treatment_indicators = function() {
       assignments = generate_assignments(
-        self$unique_user_ids, self$assignment_batch_size, self$user_id_col, self$assignment_col_names
+        self$unique_user_ids,
+        self$assignment_batch_size,
+        self$user_id_col,
+        self$assignment_col_names
       )
       self$real_events_data_table[, (self$assignment_col_names) := NULL]
       setkeyv(self$real_events_data_table, self$user_id_col)
       self$real_events_data_table = setorderv(self$real_events_data_table[assignments], self$DTTM_COL)
     },
     
-    generate_cumulative_difference_trajectory = function() {
-      if(self$next_replication_num > self$assignment_batch_size) {
+    generate_cumulative_difference_trajectory = function(relative_effect =
+                                                           0.0) {
+      if (self$next_replication_num > self$assignment_batch_size) {
         self$replicate_treatment_indicators()
         self$next_replication_num = 1
       }
@@ -165,11 +185,18 @@ DataGeneratorFromRealEvents = R6Class(
                               self$next_replication_num)
       w = self$real_events_data_table[, .SD[[assignment_col]]]
       y = self$real_events_data_table[, .SD[[self$metric_col]]]
-      x = y * (1 - 2 * w)
+      x = (y * (1 + relative_effect * w)) * (1 - 2 * w)
       s = cumsum(x)
       
       self$next_replication_num = self$next_replication_num + 1
-      return(s)
+      return(
+        DataFromRealEvents$new(
+          trajectory = s,
+          signed_event_values = x,
+          assignment_indicators = w,
+          user_ids = self$real_events_data_table[, .SD[[self$user_id_col]]]
+        )
+      )
     }
   )
 )
@@ -196,16 +223,16 @@ test = function() {
     generator$real_events_data_table[, "user_id"] == c("u3", "u1", "u2", "u1", "u1", "u1")
   ))
   stopifnot(all(
-    generator$generate_cumulative_difference_trajectory() == c(-1.5, -2.5, -0.5, -3.5, -4.5)
+    generator$generate_cumulative_difference_trajectory()$trajectory == c(-1.5, -2.5, -0.5, -3.5, -4.5)
   ))
   stopifnot(all(
-    generator$generate_cumulative_difference_trajectory() == c(-1.5, -0.5, 1.5, 4.5, 5.5)
+    generator$generate_cumulative_difference_trajectory()$trajectory == c(-1.5, -0.5, 1.5, 4.5, 5.5)
   ))
   stopifnot(all(
-    generator$generate_cumulative_difference_trajectory() == c(1.5, 2.5, 4.5, 7.5, 8.5)
+    generator$generate_cumulative_difference_trajectory()$trajectory == c(1.5, 2.5, 4.5, 7.5, 8.5)
   ))
   stopifnot(all(
-    generator$generate_cumulative_difference_trajectory() == c(1.5, 0.5, -1.5, -4.5, -5.5)
+    generator$generate_cumulative_difference_trajectory()$trajectory == c(1.5, 0.5, -1.5, -4.5, -5.5)
   ))
 }
 

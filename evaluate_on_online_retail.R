@@ -273,6 +273,7 @@ clusterExport(
     "estimate_increment_std",
     "estimate_expected_number_of_orders",
     "generate_assignments",
+    "DataFromRealEvents",
     "DataGeneratorFromRealEvents",
     "Aggregator",
     "initialise_continuous_methods",
@@ -343,22 +344,41 @@ process_file = function(i) {
     actual_num_observations
   )
   
-  for (r in 1:num_assignment_replications[i]) {
-    #   if (r %% 100 == 0) {
-    #     print(sprintf("Replication # %.04d", r))
-    #   }
-    trajectory = data_generator$generate_cumulative_difference_trajectory()
-    # the trajectory of the cumulative difference in the revenue between
-    # control and treatment
-    
-    for (statistical_test in continuous_methods) {
-      detection_indicators = statistical_test$monitor(trajectory)
-      # -- continuous monitoring mode
-      aggregator$update(0.0,
-                        "stream",
-                        statistical_test$name,
-                        any(detection_indicators),
+  for (relative_effect in c(0.00, 0.05, 0.10, 0.20)) { #-0.01, -0.02, -0.05, -0.10)) {
+    for (r in 1:num_assignment_replications[i]) {
+      #   if (r %% 100 == 0) {
+      #     print(sprintf("Replication # %.04d", r))
+      #   }
+      generation_result = data_generator$generate_cumulative_difference_trajectory(-relative_effect)
+      trajectory = generation_result$trajectory
+      # the trajectory of the cumulative difference in the revenue between
+      # control and treatment
+      
+      # computing the p-value of the standard non-sequential test
+      # (applied at the end of the experiment)
+      grouped_by_user = data.table(
+        x=generation_result$signed_event_values, w=generation_result$assignment_indicators, user_id=generation_result$user_ids
+      )[, .(x = sum(x), w =max(w)), by = .(user_id)]
+      ttest_pvalue = t.test(
+        -grouped_by_user[grouped_by_user$w == 1, x],
+        grouped_by_user[grouped_by_user$w == 0, x],
+        var.equal = TRUE
+      )$p.value
+      aggregator$update(relative_effect,
+                        "non-sequential",
+                        "ttest",
+                        ttest_pvalue < SIGNIFICANCE_LEVEL,
                         0)
+      
+      for (statistical_test in continuous_methods) {
+        detection_indicators = statistical_test$monitor(trajectory)
+        # -- continuous monitoring mode
+        aggregator$update(relative_effect,
+                          "stream",
+                          statistical_test$name,
+                          any(detection_indicators),
+                          0)
+      }
     }
   }
   
@@ -385,42 +405,49 @@ files = list.files(OUTPUT_DIRECTORY, full.names = TRUE)
 df = rbindlist(lapply(files, function(file)
   fread(file) %>% .[, file := basename(file)]))
 
-fdr_dt = df[, .(num_detections = sum(num_detections),
-                num_trials = sum(num_trials)), by = method]
-num_methods = nrow(fdr_dt)
+dr_dt = df[, .(num_detections = sum(num_detections),
+                num_trials = sum(num_trials)), by = .(method, effect)]
+num_methods = nrow(dr_dt)
 
-fdr_dt[, `:=`(detection_rate = num_detections / num_trials)]
-fdr_dt[, `:=`(
+dr_dt[, `:=`(detection_rate = num_detections / num_trials)]
+dr_dt[, `:=`(
   variance_estimate = ifelse(grepl("non-robust$", method), "non-robust", "robust"),
   method = str_split_fixed(method, "-", 2)[, 1],
   ci_pm = qnorm(1 - 0.05 / 2 / num_methods) * sqrt(detection_rate * (1 - detection_rate) / num_trials)  # this is the CI half-length
 )]
-
-result_dt = dcast(fdr_dt,
-                  method ~ variance_estimate,
-                  value.var = c("detection_rate", "ci_pm"))
-
-result_dt[, `:=`(
-  detection_rate_robust = round(detection_rate_robust, 4),
-  `detection_rate_non-robust` = round(`detection_rate_non-robust`, 4),
-  ci_pm_robust = round(ci_pm_robust, 4),
-  `ci_pm_non-robust` = round(`ci_pm_non-robust`, 4)
-)]
-
-result_dt[, `:=`(
-  robust = paste0(
-    sprintf("%.4f", detection_rate_robust),
+dr_dt[, `:=`(
+  detection_rate_with_ci = paste0(
+    sprintf("%.4f", round(detection_rate, 4)),
     " ± ",
-    sprintf("%.4f", ci_pm_robust)
-  ),
-  `non-robust` = paste0(
-    sprintf("%.4f", `detection_rate_non-robust`),
-    " ± ",
-    sprintf("%.4f", `ci_pm_non-robust`)
+    sprintf("%.4f", round(ci_pm, 4))
   )
 )]
 
+# -- Computing the False Detection Rate
+
+fdr_dt = dcast(dr_dt[dr_dt$effect == 0.0],
+                  method ~ variance_estimate,
+                  value.var = "detection_rate")
+
+# -- Computing the Power
+
+pow_dt = dcast(dr_dt[dr_dt$variance_estimate == 'robust'],
+               method ~ effect,
+               value.var = "detection_rate_with_ci")
+# pow_dt = dcast(dr_dt[dr_dt$variance_estimate == 'robust'],
+#                method ~ effect,
+#                value.var = "detection_rate")
+# ttest_values = pow_dt[method == "Classical",]
+# pow_dt_numeric_cols = names(pow_dt)[sapply(pow_dt, is.numeric)]
+# relative_pow_dt = copy(pow_dt)
+# for (col in pow_dt_numeric_cols) {
+#   relative_pow_dt[, (col) := round(get(col) / ttest_values[[col]], 4)]
+# }
+
+# -- Printing Results
+
 methods = c(
+  "Classical",
   "YEAST",
   "pYEAST6",
   "GAVI250",
@@ -436,6 +463,18 @@ methods = c(
   "CAA"
 )
 
-print(result_dt[methods, c("method", "robust", "non-robust")])
+print(fdr_dt[methods, c("method", "robust", "non-robust")])
 
-print(xtable(result_dt[methods, c("method", "robust", "non-robust")]))
+print(xtable(fdr_dt[methods, c("method", "robust", "non-robust")]))
+
+# pow_cols = names(pow_dt)
+# pow_cols = c("method", sort(pow_dt_numeric_cols, decreasing = TRUE)[2:length(pow_dt_numeric_cols)])
+pow_cols = c("method", names(pow_dt)[3:length(names(pow_dt))])
+
+print(pow_dt[methods, ..pow_cols])
+
+print(xtable(pow_dt[methods, ..pow_cols]))
+
+# print(relative_pow_dt[methods, ..pow_cols])
+# 
+# print(xtable(relative_pow_dt[methods, ..pow_cols]))
