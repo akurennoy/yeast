@@ -122,13 +122,6 @@ initialise_continuous_methods = function(robust_increment_std,
         non_robust_increment_std,
         750
       ),
-      # -- CAA (Statsig)
-      CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, robust_increment_std),
-      CAAnr = CAA$new(
-        "CAA-non-robust",
-        SIGNIFICANCE_LEVEL,
-        non_robust_increment_std
-      ),
       # -- Classical (a z-test conducted once at the end of the experiment)
       Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, robust_increment_std, 1),
       Classicalnr = Bonferroni$new(
@@ -359,8 +352,7 @@ methods = c(
   "GAVI250",
   "GAVI500",
   "GAVI750",
-  "GAVI10K",
-  "CAA"
+  "GAVI10K"
 )
 
 print(result_dt[methods, c("method", "robust", "non-robust")])
