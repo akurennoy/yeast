@@ -130,7 +130,7 @@ pYEAST = R6Class(
       
       return(trajectory > boundary)
     },
-    monitor = function(trajectory) {
+    monitor = function(trajectory, assignment_indicators=NULL) {
       return(self$monitor_(
         trajectory,
         self$actual_cumulative_num_observations_by_period

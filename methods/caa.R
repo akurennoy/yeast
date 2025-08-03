@@ -13,7 +13,7 @@ CAA = R6Class(
       self$significance_level = significance_level
       self$increment_std = increment_std
     },
-    monitor = function(trajectory) {
+    monitor = function(trajectory, assignment_indicators=NULL) {
       N = length(trajectory)
       n = 1:N
       standardised_trajectory = trajectory / self$increment_std / sqrt(n)

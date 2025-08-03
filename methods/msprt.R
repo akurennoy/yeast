@@ -24,7 +24,7 @@ mSPRT = R6Class(
       self$increment_std = increment_std
       self$phi = phi
     },
-    monitor = function(trajectory) {
+    monitor = function(trajectory, assignment_indicators=NULL) {
       N = length(trajectory)
       two_sided_significance_level = 2 * self$significance_level
       n = 1:N

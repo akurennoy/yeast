@@ -7,7 +7,7 @@ SequentialTest = R6Class("SequentialTest",
                            initialize = function(name) {
                              self$name = name
                            },
-                           monitor = function(trajectory) {
+                           monitor = function(trajectory, assignment_indicators) {
                              stop("This method should be overridden by subclasses")
                            }
                          ))

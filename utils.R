@@ -13,8 +13,9 @@ measure_fdr = function(sequential_test,
                        num_replications) {
   num_detections = 0
   for (r in 1:num_replications) {
+    assignments = rbinom(num_observations, 1, 0.5)
     increments = rnorm(num_observations, 0, increment_std)
-    if (any(sequential_test$monitor(cumsum(increments)))) {
+    if (any(sequential_test$monitor(cumsum(increments), assignments))) {
       num_detections = num_detections + 1
     }
   }

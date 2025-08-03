@@ -18,7 +18,7 @@ Bonferroni = R6Class(
       self$increment_std = increment_std
       self$num_checks = num_checks
     },
-    monitor = function(trajectory) {
+    monitor = function(trajectory, assignment_indicators=NULL) {
       N = length(trajectory)
       n = 1:N
       standardised_trajectory = trajectory / self$increment_std / sqrt(n)

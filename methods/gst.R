@@ -71,7 +71,7 @@ GST = R6Class(
       )[1:actual_num_checks]
       self$normalised_actual_check_times = seq(1 / actual_num_checks, 1, 1 / actual_num_checks)
     },
-    monitor = function(trajectory) {
+    monitor = function(trajectory, assignment_indicators=NULL) {
       N = length(trajectory)
       standardised_trajectory = trajectory / self$increment_std / sqrt(1:N)
       return(standardised_trajectory[N * self$normalised_actual_check_times]
