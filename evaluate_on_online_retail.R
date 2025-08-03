@@ -27,6 +27,9 @@ source("methods/gst.R")
 source("methods/msprt.R")
 source("methods/yeast.R")
 source("methods/pyeast.R")
+source("methods/ld_obf.R")
+source("methods/sec_c_2st_ons_qda.R")
+
 source("utils.R")
 
 
@@ -192,6 +195,15 @@ initialise_continuous_methods = function(robust_increment_std,
       non_robust_increment_std,
       10000
     ),
+    LanDeMetsOBF = LanDeMetsOBF$new(
+      "LanDeMetsOBF", SIGNIFICANCE_LEVEL, robust_increment_std
+    ),
+    LanDeMetsOBFnr = LanDeMetsOBF$new(
+      "LanDeMetsOBFnr", SIGNIFICANCE_LEVEL, non_robust_increment_std
+    ),
+    SeqC2ST_QDA = SeqC2ST_QDA$new(
+      "SeqC2ST_QDA", SIGNIFICANCE_LEVEL
+    ),
     # -- Classical (a z-test conducted once at the end of the experiment)
     Classical = Bonferroni$new("Classical", SIGNIFICANCE_LEVEL, robust_increment_std, 1),
     Classicalnr = Bonferroni$new(
@@ -285,8 +297,13 @@ clusterExport(
     "GAVI",
     "mSPRT",
     "CAA",
+    "LanDeMetsOBF",
+    "QDAStats",
+    "SeqC2ST_QDA",
     "SIGNIFICANCE_LEVEL",
-    "OUTPUT_DIRECTORY"
+    "OUTPUT_DIRECTORY",
+    "NUM_OBSERVATIONS",
+    "get_savings"
   )
 )
 
@@ -368,7 +385,9 @@ process_file = function(i) {
                         0)
       
       for (statistical_test in continuous_methods) {
-        detection_indicators = statistical_test$monitor(trajectory)
+        detection_indicators = statistical_test$monitor(
+          trajectory, generation_result$assignment_indicators
+        )
         # -- continuous monitoring mode
         aggregator$update(relative_effect,
                           "stream",
@@ -451,17 +470,15 @@ pow_dt = dcast(dr_dt[dr_dt$variance_estimate == 'robust'],
 methods = c(
   "Classical",
   "YEAST",
-  "pYEAST6",
-  "GAVI250",
-  "GAVI500",
-  "GAVI750",
   "mSPRT100",
   "mSPRT011",
   "mSPRT025",
   "GAVI250",
   "GAVI500",
   "GAVI750",
-  "GAVI10K"
+  "GAVI10K",
+  "LanDeMetsOBF",
+  "SeqC2ST_QDA"
 )
 
 print(fdr_dt[methods, c("method", "robust", "non-robust")])
