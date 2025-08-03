@@ -374,7 +374,12 @@ process_file = function(i) {
                           "stream",
                           statistical_test$name,
                           any(detection_indicators),
-                          0)
+                          get_savings(
+                            detection_indicators,
+                            1:NUM_OBSERVATIONS,
+                            NUM_OBSERVATIONS
+                          )
+        )
       }
     }
   }
