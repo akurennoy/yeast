@@ -79,24 +79,34 @@ orders = data %>%
     user_id = CustomerID
   )
 
+# # ------------
+# mu <- mean(orders$order_value, na.rm = TRUE)
+# sigma <- sd(orders$order_value, na.rm = TRUE)
+# 
+# meanlog <- log(mu^2 / sqrt(sigma^2 + mu^2))
+# sdlog <- sqrt(log(1 + (sigma^2 / mu^2)))
+# 
+# orders <- orders %>%
+#   mutate(order_value = rlnorm(n(), meanlog, sdlog))
+# # -------------
 
 # We split the data into two parts (6 months each)
 # The first part is used for estimating the input parameters.
 # The second part is used for the validation.
 
 
-dir.create(PROCESSED_DATA_DIRECTORY)
+# dir.create(PROCESSED_DATA_DIRECTORY)
 write_parquet(
   orders %>% filter(year_month %in% c("2010-12", "2011-01", "2011-02", "2011-03", "2011-04", "2011-05")),
   paste0(
-    PROCESSED_DATA_DIRECTORY, 
+    PROCESSED_DATA_DIRECTORY,
     "00_201012_201105.parquet"
   )
 )
 write_parquet(
   orders %>% filter(year_month %in% c("2011-06", "2011-07", "2011-08", "2011-09", "2011-10", "2011-11")),
   paste0(
-    PROCESSED_DATA_DIRECTORY, 
+    PROCESSED_DATA_DIRECTORY,
     "01_201106_201111.parquet"
   )
 )
@@ -201,7 +211,7 @@ initialise_continuous_methods = function(robust_increment_std,
     LanDeMetsOBFnr = LanDeMetsOBF$new(
       "LanDeMetsOBFnr", SIGNIFICANCE_LEVEL, non_robust_increment_std
     ),
-    SeqC2ST_QDA = SeqC2ST_QDA$new(
+    SeqC2ST_QDA = SeqC2ST$new(
       "SeqC2ST_QDA", SIGNIFICANCE_LEVEL
     ),
     # -- Classical (a z-test conducted once at the end of the experiment)
@@ -299,7 +309,9 @@ clusterExport(
     "CAA",
     "LanDeMetsOBF",
     "QDAStats",
-    "SeqC2ST_QDA",
+    "OnlineQDA",
+    "OnlineLogistic",
+    "SeqC2ST",
     "SIGNIFICANCE_LEVEL",
     "OUTPUT_DIRECTORY",
     "NUM_OBSERVATIONS",
@@ -358,7 +370,7 @@ process_file = function(i) {
     actual_num_observations
   )
   
-  for (relative_effect in c(0.00, 0.05, 0.10, 0.20)) { #-0.01, -0.02, -0.05, -0.10)) {
+  for (relative_effect in c(0.00, 0.05, 0.10, 0.20, 0.50)) { #-0.01, -0.02, -0.05, -0.10)) {
     for (r in 1:num_assignment_replications[i]) {
       #   if (r %% 100 == 0) {
       #     print(sprintf("Replication # %.04d", r))
@@ -395,8 +407,8 @@ process_file = function(i) {
                           any(detection_indicators),
                           get_savings(
                             detection_indicators,
-                            1:NUM_OBSERVATIONS,
-                            NUM_OBSERVATIONS
+                            1:length(trajectory),
+                            length(trajectory)
                           )
         )
       }
@@ -411,7 +423,6 @@ process_file = function(i) {
   
   return(result)
 }
-
 
 results = parLapply(cl, 1:num_cores, process_file)
 
@@ -465,6 +476,14 @@ pow_dt = dcast(dr_dt[dr_dt$variance_estimate == 'robust'],
 #   relative_pow_dt[, (col) := round(get(col) / ttest_values[[col]], 4)]
 # }
 
+
+as_dt = df[, .(total_savings = sum(total_savings),
+               num_detections = sum(num_detections)), by = .(method, effect)]
+as_dt[, `:=`(average_savings = total_savings / num_detections)]
+savings_dt = dcast(as_dt[as_dt$variance_estimate == 'robust'],
+                   method ~ effect,
+                   value.var = "average_savings")
+
 # -- Printing Results
 
 methods = c(
@@ -496,3 +515,5 @@ print(xtable(pow_dt[methods, ..pow_cols]))
 # print(relative_pow_dt[methods, ..pow_cols])
 # 
 # print(xtable(relative_pow_dt[methods, ..pow_cols]))
+
+savings_cols = names(savings_dt)

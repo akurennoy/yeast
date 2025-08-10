@@ -1,5 +1,8 @@
+library(progress)
+
 source("methods/sequential_test.R")
 source("utils.R")
+source("methods/yeast.R")
 
 
 QDAStats <- R6Class("QDAStats", public = list(
@@ -21,80 +24,110 @@ QDAStats <- R6Class("QDAStats", public = list(
 ))
 
 
-SeqC2ST_QDA <- R6Class(
-  "SeqC2ST_QDA",
-  inherit = SequentialTest,
-  public = list(
-    significance_level = NULL,
-    initial_wealth = NULL,
-    initialize = function(name,
-                          significance_level,
-                          initial_wealth = 1.0) {
-      super$initialize(name)
-      self$significance_level = significance_level
-      self$initial_wealth = initial_wealth
-    },
-    monitor = function(trajectory, assignment_indicators) {
-      n = length(trajectory)
-      stopping = logical(n)
-      
-      stats_test = QDAStats$new()
-      stats_control = QDAStats$new()
-      
-      lam = 0.0
-      a = 1.0
-      K = self$initial_wealth
-      
-      for (i in 1:n) {
-        # -- extracting the next observation (x) and the associated assignment (w)
-        if (i == 1) {
-          x = trajectory[1]
-        } else {
-          x = trajectory[i] - trajectory[i - 1]
-        }
-        w = 2 * assignment_indicators[i] - 1
-        
-        # -- computing the classifier score
-        if (stats_test$n < 2 || stats_control$n < 2) {
-          g = 0
-        } else {
-          g = 2 * (
-            -0.5 * log(stats_test$var) - 0.5 * (x - stats_test$mean)^2 / stats_test$var
-            > -0.5 * log(stats_control$var) - 0.5 * (x - stats_control$mean)^2 / stats_control$var
-          ) - 1
-        }
-        
-        # -- computing the payoff
-        f = w * g
-        
-        # -- updating the wealth
-        K = K * (1 + f * lam)
-        
-        # -- checking the detection condition
-        stopping[i] = (K >= 1 / self$significance_level)
-        
-        # -- updating the stats
-        if (w == 1) {
-          stats_test$update(x)
-        } else {
-          stats_control$update(x)
-        }
-        
-        # -- updating the bet
-        denom = 1 - lam
-        if (abs(denom) < 1e-12) {
-          denom = sign(denom) * 1e-12
-        }
-        z = f / denom
-        a = a + z^2
-        lam <- max(min(lam - 2 / (2 - log(3)) * z / a, 0.5), -0.5)
-      }
+OnlineQDA <- R6Class("OnlineQDA",
+                     public = list(
+                       stats_pos = NULL,
+                       stats_neg = NULL,
 
-      return(stopping)
-    }
-    
-  )
+                       initialize = function(lr = 0.1) {
+                         self$stats_pos = QDAStats$new()
+                         self$stats_neg = QDAStats$new()
+                       },
+
+                       predict = function(x) {
+                         (
+                           -0.5 * log(self$stats_pos$var) - 0.5 * (x - self$stats_pos$mean)^2 / self$stats_pos$var
+                           > -0.5 * log(self$stats_neg$var) - 0.5 * (x - self$stats_neg$mean)^2 / self$stats_neg$var
+                         )
+                       },
+
+                       score = function(x) {
+                         p = self$predict(x)
+                         2 * p - 1
+                       },
+
+                       update = function(x, y) {
+                         if (y == 1) {
+                           self$stats_pos$update(x)
+                         }
+                         else {
+                           self$stats_neg$update(x)
+                         }
+                       }
+                     )
 )
 
-set.seed(2024)
-print(round(measure_fdr(SeqC2ST_QDA$new("SeqC2ST_QDA", 0.05), 10, 500, 1000), 2))
+
+SeqC2ST <- R6Class("SeqC2ST",
+                   inherit = SequentialTest,
+                   
+                   public = list(
+                     alpha = NULL,
+                     lr = 0.1,
+                     K = NULL,
+                     model = NULL,
+                     z_sumsq = NULL,
+                     v = NULL,
+                     
+                     
+                     initialize = function(name, alpha = 0.05, lr = 0.1) {
+                       super$initialize(name)
+                       self$alpha <- alpha
+                       self$lr <- lr
+                       self$K <- 1.0
+                       self$model <- OnlineQDA$new()
+                       self$z_sumsq <- 0.0
+                       self$v <- 0.0
+                     },
+                     
+                     step = function(z_t, w_t) {
+                       g_t <- self$model$score(z_t)
+                       f_t <- w_t * g_t
+                       self$K <- min(1e6, self$K + f_t * self$v * self$K)
+                       
+                       if (self$K >= 1 / self$alpha) {
+                         return(TRUE)
+                       }
+                       
+                       y01 <- (w_t + 1) / 2
+                       self$model$update(z_t, y01)
+                       
+                       # z_ons <- g_t / max(1e-12, 1 - g_t * self$v)
+                       z_ons <- g_t / max(1e-12, 1 - self$v)
+                       self$z_sumsq <- self$z_sumsq + z_ons^2
+                       A <- 1 + self$z_sumsq
+                       step_size <- 2 / (2 - log(3))# / 2
+                       v_new <- self$v - step_size * z_ons / A
+                       self$v <- min(0.5, max(-0.0, v_new))
+                       
+                       return(FALSE)
+                     },
+                     
+                     monitor = function(trajectory, assignment_indicators) {
+                       self$model <- OnlineQDA$new()
+                       self$K = 1.0
+                       self$z_sumsq = 0.0
+                       self$v = 0.0
+                       
+                       n = length(trajectory)
+                       stopping = logical(n)
+                       
+                       for (i in 1:n) {
+                         # -- extracting the next observation (x) and the associated assignment (w)
+                         w = 2 * assignment_indicators[i] - 1
+                         if (i == 1) {
+                           x = trajectory[1] / (-w)
+                         } else {
+                           x = (trajectory[i] - trajectory[i - 1]) / (-w)
+                         }
+                         
+                         stopping[i] = self$step(x, w)
+                       }
+                       return(stopping)
+                     }
+                   )
+)
+
+
+# set.seed(2024)
+# print(round(measure_fdr(SeqC2ST$new("SeqC2ST"), 1, 500, 1000), 2))
