@@ -39,6 +39,6 @@ mSPRT = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   mSPRT$new("mSPRT25", 0.05, 10, 25), 10, 500, 1000
 # ), 2))

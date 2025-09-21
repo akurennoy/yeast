@@ -40,6 +40,6 @@ GAVI = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   GAVI$new("GAVI250", 0.05, 10, 250), 10, 500, 1000
 # ), 2))

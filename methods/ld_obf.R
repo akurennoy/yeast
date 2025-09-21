@@ -46,4 +46,6 @@ LanDeMetsOBF <- R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(LanDeMetsOBF$new("Lan-DeMets OBF", 0.05, 10), 10, 500, 1000), 2))
+# print(round(measure_detection_rate(
+#   LanDeMetsOBF$new("Lan-DeMets OBF", 0.05, 10), 10, 500, 1000
+# ), 2))

@@ -29,7 +29,7 @@ Bonferroni = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   Bonferroni$new("Bonferroni14", 0.05, 10, 14),
 #   10,
 #   500,

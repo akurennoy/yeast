@@ -82,21 +82,21 @@ GST = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   GST$new("GST14", 0.05, 1, 14, 14, 10), 10, 500, 1000
 # ), 2))
 #
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   GST$new("GST14o", 0.05, 1, 14, 28, 10), 10, 500, 1000
 # ), 2))
 #
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   GST$new("GST14u", 0.05, 1, 14, 7, 10), 10, 500, 1000
 # ), 2))
 #
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   GST$new("GST14phi3o", 0.05, 3, 14, 28, 10), 10, 500, 1000
 # ), 2))

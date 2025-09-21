@@ -24,4 +24,4 @@ CAA = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(CAA$new("CAA", 0.05, 10), 10, 500, 1000), 2))
+# print(round(measure_detection_rate(CAA$new("CAA", 0.05, 10), 10, 500, 1000), 2))

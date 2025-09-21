@@ -20,7 +20,7 @@ YEAST = R6Class(
       self$expected_num_observations = expected_num_observations
       self$increment_std = increment_std
     },
-    monitor = function(trajectory, assignment_indicators=NULL) {
+    monitor = function(trajectory, assignment_indicators = NULL) {
       boundary = (
         qnorm(1 - self$significance_level / 2)
         * sqrt(self$expected_num_observations) * self$increment_std
@@ -32,4 +32,6 @@ YEAST = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(YEAST$new("YEAST", 0.05, 500, 10), 10, 500, 1000), 2))
+# print(round(measure_detection_rate(
+#   YEAST$new("YEAST", 0.05, 500, 10), 10, 500, 1000
+# ), 2))

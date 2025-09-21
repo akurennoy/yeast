@@ -130,4 +130,4 @@ SeqC2ST <- R6Class("SeqC2ST",
 
 
 # set.seed(2024)
-# print(round(measure_fdr(SeqC2ST$new("SeqC2ST"), 1, 500, 1000), 2))
+# print(round(measure_detection_rate(SeqC2ST$new("SeqC2ST"), 1, 500, 1000), 2))

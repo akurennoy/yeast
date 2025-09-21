@@ -141,11 +141,11 @@ pYEAST = R6Class(
 
 
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   pYEAST$new("pYEAST7", 0.05, round((1:7) * (500 / 7)), 10), 10, 500, 1000
 # ), 2))
 # 
 # set.seed(2024)
-# print(round(measure_fdr(
+# print(round(measure_detection_rate(
 #   pYEAST$new("pYEAST14", 0.05, round((1:14) * (500 / 14)), 10), 10, 500, 1000
 # ), 2))
