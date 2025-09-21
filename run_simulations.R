@@ -6,6 +6,8 @@ source("methods/gst.R")
 source("methods/msprt.R")
 source("methods/pyeast.R")
 source("methods/yeast.R")
+source("methods/ld_obf.R")
+source("methods/sec_c_2st_ons_qda.R")
 source("utils.R")
 
 
@@ -79,7 +81,10 @@ setup_methods = function(event_value_std) {
       NUM_OBSERVATIONS
     ),
     # -- CAA (Statsig)
-    CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std)
+    CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
+    LanDeMetsOBF = LanDeMetsOBF$new(
+      "LanDeMetsOBF", SIGNIFICANCE_LEVEL, increment_std
+    )
   )
   discrete_methods = list(
     # keys are the numbers of discrete checks
@@ -153,17 +158,24 @@ run_experiment = function(seed,
   data_generator = DataGenerator$new(event_value_generator)
   
   methods = setup_methods(event_value_std)
+  seq_c_2st_qda = SeqC2ST$new(
+    "SeqC2ST_QDA", SIGNIFICANCE_LEVEL
+  ) # will process this method separately as it requires assignment indicators as an extra input
   aggregator = Aggregator$new()
   
   for (r in 1:NUM_REPLICATIONS) {
     for (relative_effect in EFFECT_SIZES) {
-      trajectory = data_generator$generate_cumulative_difference_trajectory(NUM_OBSERVATIONS, relative_effect) # the trajectory of the cumulative difference in the metric of interest
+      generation_result = data_generator$generate_cumulative_difference_trajectory(
+        NUM_OBSERVATIONS, relative_effect
+      ) 
+      # the trajectory of the cumulative difference in the metric of interest
       # between control and treatment
+      trajectory = generation_result$trajectory
       
       # -- continuous monitoring methods
       
       for (statistical_test in methods$continuous_methods) {
-        detection_indicators = statistical_test$monitor(trajectory)
+        detection_indicators = statistical_test$monitor(trajectory, NULL)
         # -- continuous monitoring mode
         aggregator$update(
           relative_effect,
@@ -194,12 +206,29 @@ run_experiment = function(seed,
         }
       }
       
-      # -- discrete monitoring methods
+      event_values = generation_result$event_values
+      seq_c_2st_detection_indicators = seq_c_2st_qda$monitor(
+        trajectory=cumsum(as.vector(rbind(event_values$treatment, -event_values$control))),
+        assignment_indicators=rep(c(1, 0), length.out = 2 * NUM_OBSERVATIONS)
+      )[seq(1, 2 * NUM_OBSERVATIONS, by = 2)]
+      aggregator$update(
+        relative_effect,
+        "stream",
+        seq_c_2st_qda$name,
+        any(seq_c_2st_detection_indicators),
+        get_savings(
+          seq_c_2st_detection_indicators,
+          1:NUM_OBSERVATIONS,
+          NUM_OBSERVATIONS
+        )
+      )
       
+      # -- discrete monitoring methods
+
       for (num_checks_str in names(methods$discrete_methods)) {
         num_checks = as.numeric(num_checks_str)
         for (statistical_test in methods$discrete_methods[[num_checks_str]]) {
-          detection_indicators = statistical_test$monitor(trajectory)
+          detection_indicators = statistical_test$monitor(trajectory, NULL)
           check_times = NUM_OBSERVATIONS * seq(1 / num_checks, 1, 1 / num_checks)
           aggregator$update(
             relative_effect,
@@ -217,7 +246,7 @@ run_experiment = function(seed,
     }
   }
   result = aggregator$get_result()
-  report(result, methods$continuous_methods)
+  report(result, list(methods$continuous_methods, list(SeqC2ST_QDA=seq_c_2st_qda)))
   return(result)
 }
 
@@ -245,3 +274,4 @@ write.csv(result, "student.csv", row.names = FALSE)
 
 result = run_experiment(2024, GammaEventValueGenerator$new(1, 2), 2)
 write.csv(result, "gamma.csv", row.names = FALSE)
+
