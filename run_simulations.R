@@ -80,8 +80,8 @@ setup_methods = function(event_value_std) {
       increment_std,
       NUM_OBSERVATIONS
     ),
-    # -- CAA (Statsig)
-    CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
+    # # -- CAA (Statsig)
+    # CAA = CAA$new("CAA", SIGNIFICANCE_LEVEL, increment_std),
     LanDeMetsOBF = LanDeMetsOBF$new(
       "LanDeMetsOBF", SIGNIFICANCE_LEVEL, increment_std
     )
@@ -173,7 +173,7 @@ run_experiment = function(seed,
       trajectory = generation_result$trajectory
       
       # -- continuous monitoring methods
-      
+
       for (statistical_test in methods$continuous_methods) {
         detection_indicators = statistical_test$monitor(trajectory, NULL)
         # -- continuous monitoring mode
@@ -205,7 +205,7 @@ run_experiment = function(seed,
           )
         }
       }
-      
+
       event_values = generation_result$event_values
       seq_c_2st_detection_indicators = seq_c_2st_qda$monitor(
         trajectory=cumsum(as.vector(rbind(event_values$treatment, -event_values$control))),
@@ -222,7 +222,7 @@ run_experiment = function(seed,
           NUM_OBSERVATIONS
         )
       )
-      
+
       # -- discrete monitoring methods
 
       for (num_checks_str in names(methods$discrete_methods)) {
@@ -246,7 +246,7 @@ run_experiment = function(seed,
     }
   }
   result = aggregator$get_result()
-  report(result, list(methods$continuous_methods, list(SeqC2ST_QDA=seq_c_2st_qda)))
+  report(result, c(methods$continuous_methods, list(SeqC2ST_QDA=seq_c_2st_qda)))
   return(result)
 }
 

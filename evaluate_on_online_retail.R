@@ -209,7 +209,7 @@ initialise_continuous_methods = function(robust_increment_std,
       "LanDeMetsOBF", SIGNIFICANCE_LEVEL, robust_increment_std
     ),
     LanDeMetsOBFnr = LanDeMetsOBF$new(
-      "LanDeMetsOBFnr", SIGNIFICANCE_LEVEL, non_robust_increment_std
+      "LanDeMetsOBF-non-robust", SIGNIFICANCE_LEVEL, non_robust_increment_std
     ),
     SeqC2ST_QDA = SeqC2ST$new(
       "SeqC2ST_QDA", SIGNIFICANCE_LEVEL
@@ -310,7 +310,6 @@ clusterExport(
     "LanDeMetsOBF",
     "QDAStats",
     "OnlineQDA",
-    "OnlineLogistic",
     "SeqC2ST",
     "SIGNIFICANCE_LEVEL",
     "OUTPUT_DIRECTORY",
@@ -443,7 +442,7 @@ num_methods = nrow(dr_dt)
 
 dr_dt[, `:=`(detection_rate = num_detections / num_trials)]
 dr_dt[, `:=`(
-  variance_estimate = ifelse(grepl("non-robust$", method), "non-robust", "robust"),
+  variance_estimate = ifelse(grepl("non-robust", method), "non-robust", "robust"),
   method = str_split_fixed(method, "-", 2)[, 1],
   ci_pm = qnorm(1 - 0.05 / 2 / num_methods) * sqrt(detection_rate * (1 - detection_rate) / num_trials)  # this is the CI half-length
 )]
@@ -506,7 +505,7 @@ print(xtable(fdr_dt[methods, c("method", "robust", "non-robust")]))
 
 # pow_cols = names(pow_dt)
 # pow_cols = c("method", sort(pow_dt_numeric_cols, decreasing = TRUE)[2:length(pow_dt_numeric_cols)])
-pow_cols = c("method", names(pow_dt)[3:length(names(pow_dt))])
+pow_cols = c("method", names(pow_dt)[2:length(names(pow_dt))])
 
 print(pow_dt[methods, ..pow_cols])
 
