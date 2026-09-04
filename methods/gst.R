@@ -41,7 +41,6 @@ GST = R6Class(
     actual_num_checks = NULL,
     increment_std = NULL,
     thresholds = NULL,
-    normalised_actual_check_times = NULL,
     initialize = function(name,
                           significance_level,
                           phi,
@@ -69,13 +68,19 @@ GST = R6Class(
           phi
         )
       )[1:actual_num_checks]
-      self$normalised_actual_check_times = seq(1 / actual_num_checks, 1, 1 / actual_num_checks)
     },
-    monitor = function(trajectory, assignment_indicators=NULL) {
-      N = length(trajectory)
-      standardised_trajectory = trajectory / self$increment_std / sqrt(1:N)
-      return(standardised_trajectory[N * self$normalised_actual_check_times]
-             > self$thresholds)
+    boundary = function(num_observations) {
+      # A check happens after a whole number of observations, so the schedule is
+      # floored before it is used for the index and for the scale alike. Integer
+      # division avoids the binary-rounding artefact of trunc(N * j / k), which
+      # lands a check one observation early whenever N * j / k is an exact
+      # integer that is not exactly representable.
+      check_times = ((num_observations * seq_len(self$actual_num_checks))
+                     %/% self$actual_num_checks)
+      return(list(
+        index = check_times,
+        value = self$thresholds * self$increment_std * sqrt(check_times)
+      ))
     }
   )
 )

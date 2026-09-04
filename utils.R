@@ -24,6 +24,51 @@ measure_detection_rate = function(sequential_test,
 }
 
 
+# Wilson score interval. Preferred over the Wald interval because the Monte
+# Carlo detection rates reach 0 and 1, where the Wald interval degenerates to a
+# zero-width interval.
+wilson_interval = function(num_successes, num_trials, confidence_level = 0.95) {
+  z = qnorm(1 - (1 - confidence_level) / 2)
+  p = num_successes / num_trials
+  denominator = 1 + z ^ 2 / num_trials
+  centre = (p + z ^ 2 / (2 * num_trials)) / denominator
+  half_width = (z / denominator) * sqrt(p * (1 - p) / num_trials
+                                        + z ^ 2 / (4 * num_trials ^ 2))
+  return(list(lower = pmax(0, centre - half_width),
+              upper = pmin(1, centre + half_width)))
+}
+
+
+# Whether a realised Type-I error is inflated beyond the nominal level by more
+# than Monte Carlo error, used to decide which rows may be presented as powerful.
+# Comparing the point estimate against the nominal level directly would turn a
+# fraction of a standard error into an exclusion: with 100,000 replications at
+# alpha = 0.05 the standard error is about 0.0007, so a realised 0.0501 is noise
+# and not evidence of an inflated size.
+is_size_inflated = function(num_successes,
+                            num_trials,
+                            significance_level,
+                            confidence_level = 0.95) {
+  lower = wilson_interval(num_successes, num_trials, confidence_level)$lower
+  return(lower > significance_level)
+}
+
+
+# The observation indices at which the j-th of k equally spaced checks falls.
+# Exact integer division, for the same reason as in the boundary methods:
+# num_observations * seq(1/k, 1, 1/k) truncates to one observation early
+# whenever the product is an integer that is not exactly representable, which
+# at k = 14, 28, 56 drops the terminal check entirely.
+discrete_check_times = function(num_observations, num_checks) {
+  return((num_observations * seq_len(num_checks)) %/% num_checks)
+}
+
+
+# Fraction of the planned event budget left unused when the test stops. A
+# replication in which no alert is raised contributes exactly 0, and the average
+# reported in the tables is taken over ALL replications, detecting or not. This
+# is a saving in events, not in calendar time: the two coincide only if the
+# arrival rate is constant over the monitoring window.
 get_savings = function(detection_indicators,
                        check_times,
                        num_observations) {
@@ -47,43 +92,52 @@ Aggregator = R6Class(
     TOTAL_SAVINGS_COL = "total_savings",
     DETECTION_RATE_COL = "detection_rate",
     AVERAGE_SAVINGS_COL = "average_savings",
-    df = NULL,
+    # Counters are held in a hashed environment keyed by (effect, mode, method)
+    # and the table is assembled only in get_result(). The previous
+    # implementation rescanned a growing data frame on every update, which is
+    # linear in the number of cells and dominates the runtime of the full
+    # experiment (tens of millions of updates).
+    counts = NULL,
+    meta = NULL,
+    insertion_order = NULL,
     initialize = function() {
-      
+      self$counts = new.env(hash = TRUE, parent = emptyenv())
+      self$meta = new.env(hash = TRUE, parent = emptyenv())
+      self$insertion_order = character()
     },
     update = function(relative_effect,
                       monitoring_mode,
                       method_name,
                       detection_indicator,
                       savings) {
-      row_index <- which(self$df[self$EFFECT_COL] == relative_effect
-                         & self$df[self$MODE_COL] == monitoring_mode
-                         & self$df[self$METHOD_COL] == method_name)
-      if (length(row_index) == 0) {
-        new_row = data.frame(relative_effect,
-                             monitoring_mode,
-                             method_name,
-                             1,
-                             detection_indicator,
-                             savings)
-        names(new_row) = list(
-          self$EFFECT_COL,
-          self$MODE_COL,
-          self$METHOD_COL,
-          self$NUM_TRIALS_COL,
-          self$NUM_DETECTIONS_COL,
-          self$TOTAL_SAVINGS_COL
-        )
-        self$df = rbind(self$df, new_row)
+      key = paste(relative_effect, monitoring_mode, method_name, sep = "\r")
+      cell = self$counts[[key]]
+      increment = c(1, as.numeric(detection_indicator), savings)
+      if (is.null(cell)) {
+        self$counts[[key]] = increment
+        self$meta[[key]] = list(effect = relative_effect,
+                                mode = monitoring_mode,
+                                method = method_name)
+        self$insertion_order = c(self$insertion_order, key)
       } else {
-        stopifnot(length(row_index) == 1)
-        self$df[row_index, self$NUM_TRIALS_COL] = self$df[row_index, self$NUM_TRIALS_COL] + 1
-        self$df[row_index, self$NUM_DETECTIONS_COL] = self$df[row_index, self$NUM_DETECTIONS_COL] + detection_indicator
-        self$df[row_index, self$TOTAL_SAVINGS_COL] = self$df[row_index, self$TOTAL_SAVINGS_COL] + savings
+        self$counts[[key]] = cell + increment
       }
     },
     get_result = function() {
-      result = data.table(self$df)
+      keys = self$insertion_order
+      cells = lapply(keys, function(key) self$counts[[key]])
+      metas = lapply(keys, function(key) self$meta[[key]])
+      result = data.table(
+        effect = vapply(metas, function(m) as.numeric(m$effect), numeric(1)),
+        mode = vapply(metas, function(m) as.character(m$mode), character(1)),
+        method = vapply(metas, function(m) as.character(m$method), character(1)),
+        num_trials = vapply(cells, function(x) x[1], numeric(1)),
+        num_detections = vapply(cells, function(x) x[2], numeric(1)),
+        total_savings = vapply(cells, function(x) x[3], numeric(1))
+      )
+      setnames(result, c(self$EFFECT_COL, self$MODE_COL, self$METHOD_COL,
+                         self$NUM_TRIALS_COL, self$NUM_DETECTIONS_COL,
+                         self$TOTAL_SAVINGS_COL))
       result[, self$DETECTION_RATE_COL := as.numeric(.SD[[self$NUM_DETECTIONS_COL]]) / .SD[[self$NUM_TRIALS_COL]]]
       result[, self$AVERAGE_SAVINGS_COL := .SD[[self$TOTAL_SAVINGS_COL]] / .SD[[self$NUM_TRIALS_COL]]]
       return(result)

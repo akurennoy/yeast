@@ -18,7 +18,9 @@ source("utils.R")
 
 NUM_OBSERVATIONS = 500 # number of observations per experiment group,
 # observations come in pairs
-NUM_REPLICATIONS = 100000
+# Overridable so that a small smoke run can be done before committing to the
+# full experiment:  YEAST_NUM_REPLICATIONS=200 Rscript run_simulations.R
+NUM_REPLICATIONS = as.integer(Sys.getenv("YEAST_NUM_REPLICATIONS", "100000"))
 SIGNIFICANCE_LEVEL = 0.05
 EFFECT_SIZES = c(0.0, 0.1, 0.2, 0.3, 0.4)
 
@@ -66,10 +68,11 @@ setup_methods = function(event_value_std) {
       NUM_OBSERVATIONS / 14
     )), increment_std),
     # -- mSPRT
-    mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, increment_std, 100),
-    mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, increment_std, 25),
-    mSPRTphi011 = mSPRT$new("mSPRT011", SIGNIFICANCE_LEVEL, increment_std, 1 / 0.3 ^
-                              2),
+    # Names match the manuscript tables: the suffix is the tuning value phi.
+    mSPRTphi100 = mSPRT$new("mSPRTphi100", SIGNIFICANCE_LEVEL, increment_std, 100),
+    mSPRTphi25 = mSPRT$new("mSPRTphi25", SIGNIFICANCE_LEVEL, increment_std, 25),
+    mSPRTphi11 = mSPRT$new("mSPRTphi11", SIGNIFICANCE_LEVEL, increment_std, 1 / 0.3 ^
+                             2),
     # -- GAVI
     GAVI250 = GAVI$new("GAVI250", SIGNIFICANCE_LEVEL, increment_std, 250),
     GAVI500 = GAVI$new("GAVI500", SIGNIFICANCE_LEVEL, increment_std, 500),
@@ -162,7 +165,9 @@ run_experiment = function(seed,
     "SeqC2ST_QDA", SIGNIFICANCE_LEVEL
   ) # will process this method separately as it requires assignment indicators as an extra input
   aggregator = Aggregator$new()
-  
+  discrete_names = lapply(methods$discrete_methods, function(block)
+    vapply(block, function(st) st$name, character(1)))
+
   for (r in 1:NUM_REPLICATIONS) {
     for (relative_effect in EFFECT_SIZES) {
       generation_result = data_generator$generate_cumulative_difference_trajectory(
@@ -190,8 +195,14 @@ run_experiment = function(seed,
         )
         # -- discrete monitoring mode
         for (num_checks_str in names(methods$discrete_methods)) {
+          # A name served by this block's own discrete methods must not also be
+          # written here: both writes land in the same aggregator cell, mixing
+          # two different procedures and doubling the trial count.
+          if (statistical_test$name %in% discrete_names[[num_checks_str]]) {
+            next
+          }
           num_checks = as.numeric(num_checks_str)
-          check_times = NUM_OBSERVATIONS * seq(1 / num_checks, 1, 1 / num_checks)
+          check_times = discrete_check_times(NUM_OBSERVATIONS, num_checks)
           aggregator$update(
             relative_effect,
             num_checks_str,
@@ -229,7 +240,7 @@ run_experiment = function(seed,
         num_checks = as.numeric(num_checks_str)
         for (statistical_test in methods$discrete_methods[[num_checks_str]]) {
           detection_indicators = statistical_test$monitor(trajectory, NULL)
-          check_times = NUM_OBSERVATIONS * seq(1 / num_checks, 1, 1 / num_checks)
+          check_times = discrete_check_times(NUM_OBSERVATIONS, num_checks)
           aggregator$update(
             relative_effect,
             num_checks_str,
@@ -251,27 +262,45 @@ run_experiment = function(seed,
 }
 
 
-print("MAIN EXPERIMENT")
-result = run_experiment(8163, # This is the seed value used in ref. [1].
-                        # We will use it for the normal event value distribution
-                        # to reproduce the results of ref. [1].
-                        NormalEventValueGenerator$new(1, 1), 1)
-write.csv(result, "normal.csv", row.names = FALSE)
+# The seed is set differently for each event value distribution so that the
+# simulation results obtained for the different distribution types are not
+# correlated. The parameters of the non-normal distributions were set to match
+# the coefficient of variation of the normal distribution used in ref [1].
+DISTRIBUTIONS = list(
+  normal = list(
+    seed = 8163, # This is the seed value used in ref. [1]. We use it for the
+    # normal event value distribution to reproduce the results of ref. [1].
+    generator = function() NormalEventValueGenerator$new(1, 1),
+    event_value_std = 1
+  ),
+  student = list(
+    seed = 2023,
+    generator = function() ShiftedStudentEventValueGenerator$new(sqrt(3), 3),
+    event_value_std = sqrt(3)
+  ),
+  gamma = list(
+    seed = 2024,
+    generator = function() GammaEventValueGenerator$new(1, 2),
+    event_value_std = 2
+  )
+)
 
-print("EXPERIMENTS WITH NON-NORMAL DATA")
+# Each distribution re-seeds the generator before its own replications, so
+# running them in separate processes gives byte-identical results to running
+# them in sequence and cuts the wall-clock time by a factor of three:
+#   Rscript run_simulations.R normal &
+#   Rscript run_simulations.R student &
+#   Rscript run_simulations.R gamma &
+selected = commandArgs(trailingOnly = TRUE)
+if (length(selected) == 0) {
+  selected = names(DISTRIBUTIONS)
+}
+stopifnot(all(selected %in% names(DISTRIBUTIONS)))
 
-# We are setting the seed differently depending on the chosen event value
-# distribution so that the simulation results obtained for the different
-# distribution types are not correlated.
-
-# The parameters of the non-normal distributions were set to match the
-# coefficient of variation of the normal distribution used in ref [1].
-
-result = run_experiment(2023,
-                        ShiftedStudentEventValueGenerator$new(sqrt(3), 3),
-                        sqrt(3))
-write.csv(result, "student.csv", row.names = FALSE)
-
-result = run_experiment(2024, GammaEventValueGenerator$new(1, 2), 2)
-write.csv(result, "gamma.csv", row.names = FALSE)
+for (distribution_name in selected) {
+  spec = DISTRIBUTIONS[[distribution_name]]
+  print(sprintf("EXPERIMENT: %s", distribution_name))
+  result = run_experiment(spec$seed, spec$generator(), spec$event_value_std)
+  write.csv(result, sprintf("%s.csv", distribution_name), row.names = FALSE)
+}
 

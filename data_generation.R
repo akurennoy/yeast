@@ -77,10 +77,17 @@ DataGenerator = R6Class(
     initialize = function(event_value_generator) {
       self$event_value_generator = event_value_generator
     },
+    # Returns a named list so that the interface matches the one expected by
+    # run_simulations.R (which uses $trajectory and $event_values) and the one
+    # returned by DataGeneratorFromRealEvents below.
+    # Sign convention: treatment minus control, so that a positive relative
+    # effect places the simulated alternative in the monitored upper tail.
     generate_cumulative_difference_trajectory = function(num_observations, relative_effect) {
       event_values = self$event_value_generator$generate_control_and_treatment_event_values(num_observations, relative_effect)
-      return(cumsum(event_values$treatment)
-             - cumsum(event_values$control))
+      return(list(
+        trajectory = cumsum(event_values$treatment) - cumsum(event_values$control),
+        event_values = event_values
+      ))
     }
   )
 )
