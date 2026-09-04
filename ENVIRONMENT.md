@@ -1,9 +1,9 @@
 # Environment
 
-- Recorded: 2026-09-04 22:49:43 BST
+- Recorded: 2026-09-04 23:15:29 BST
 - R: R version 4.6.1 (2026-06-24)
 - Platform: aarch64-apple-darwin25.4.0
-- Commit: b3aa3deb7e8bcbf2612a4f4e89d7fc23f4304a88 (working tree has uncommitted changes)
+- Commit: 45e2ee4a4e2c23204c35543716e2aa16a991dc6a (working tree has uncommitted changes)
 
 | package | version |
 |---|---|
@@ -17,8 +17,9 @@
 | sandwich | 3.1.3 |
 | xtable | 1.8.8 |
 
-| results file | produced | replications |
-|---|---|---|
-| normal.csv | 2026-09-04 22:47:57 BST | 100,000 |
-| student.csv | 2026-09-04 22:47:57 BST | 100,000 |
-| gamma.csv | 2026-09-04 22:47:57 BST | 100,000 |
+| results file | last changed in | date | replications |
+|---|---|---|---|
+| normal.csv | `813ac4c` | 2026-09-04 19:55 | 100,000 |
+| student.csv | `813ac4c` | 2026-09-04 19:55 | 100,000 |
+| gamma.csv | `813ac4c` | 2026-09-04 19:55 | 100,000 |
+| horizon_diagnostics.csv | `45e2ee4` | 2026-09-04 23:14 | 100,000 |
