@@ -13,8 +13,12 @@ cat(sprintf("- Recorded: %s\n", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")))
 cat(sprintf("- R: %s\n", R.version.string))
 cat(sprintf("- Platform: %s\n", R.version$platform))
 commit = tryCatch(system("git rev-parse HEAD", intern = TRUE), error = function(e) NA)
-dirty = tryCatch(length(system("git status --porcelain", intern = TRUE)) > 0,
-                 error = function(e) NA)
+# ENVIRONMENT.md is this script's own redirect target, so it is already dirty by
+# the time git runs and must be excluded or the flag is always set.
+dirty = tryCatch(
+  length(system("git status --porcelain -- . ':(exclude)ENVIRONMENT.md'",
+                intern = TRUE)) > 0,
+  error = function(e) NA)
 cat(sprintf("- Commit: %s%s\n\n",
             if (length(commit) == 1) commit else "unknown",
             if (isTRUE(dirty)) " (working tree has uncommitted changes)" else ""))

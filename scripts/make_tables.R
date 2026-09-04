@@ -219,13 +219,13 @@ main = function() {
   make_detection_rate_table(
     normal, c(0.0, 0.1, 0.2, 0.3),
     "main_experiment.tex",
-    "Simulation Experiment: \\\\ False Detection Rate and Power",
+    "Simulation Experiment: \\\\ Empirical Type-I Error and Power",
     "tbl:mainExperiment"
   )
   make_savings_table(
     normal, c(0.1, 0.2, 0.3, 0.4),
     "main_experiment_savings.tex",
-    "Simulation Experiment: Sample/Time Savings, \\%",
+    "Simulation Experiment: Sample Savings, \\%",
     "tbl:mainExperimentSavings"
   )
   make_discrete_table(

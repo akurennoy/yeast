@@ -124,7 +124,8 @@ for (i in seq_along(METHOD_ORDER)) {
   fdr_lines = c(fdr_lines, sprintf("  %d & %s & %s \\\\", i,
                                    escape_latex(display_name(this_method)), cells))
 }
-write_table(fdr_lines, "retail_fdr.tex", "False Detection Rate",
+write_table(fdr_lines, "retail_fdr.tex", paste0("Semi-synthetic Experiment: Empirical Type-I Error (Online Retail).",
+            " Several entries are run outside the setting of their published guarantee; see Table~\\ref{tbl:applicability} for what was run and how each row should be read."),
             "tbl:real-world-experiment-online-retail", "llcc",
             " & method & robust var. est. & non-robust var. est.\\\\")
 
@@ -174,7 +175,7 @@ for (i in seq_along(METHOD_ORDER)) {
 }
 write_table(
   power_lines, "retail_power.tex",
-  "Semi-synthetic Experiment: Power (Online Retail)",
+  paste0("Semi-synthetic Experiment: Power (Online Retail).", " Several entries are run outside the setting of their published guarantee; see Table~\\ref{tbl:applicability} for what was run and how each row should be read."),
   "tbl:semi-synthetic-power", "rlllll",
   paste(
     " & method & \\multicolumn{4}{c}{relative decrease in the order value}\\\\",

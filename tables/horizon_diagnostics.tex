@@ -1,0 +1,19 @@
+\begin{table}[ht]
+    \caption{Horizon-Mismatch Diagnostics (Online Retail, YEAST only). The planned event budget is $\tilde N = 8,972$ and the realised count is $M_T = 12,068$, a ratio of $1.345$. The first row is the empirical Type-I error; the remaining rows are power at the stated relative decrease in the order value. Intervals are Bonferroni-corrected Wilson intervals over the 15 cells of the table. All three configurations run on identical replications.}\label{tbl:horizon-diagnostics}
+    \centering
+    \begin{footnotesize}
+    \setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+  \hline
+ effect & primary & theorem-aligned & oracle \\
+  & $\tilde N$ bd., all $M_T$ & stop at $\min(M_T,\tilde N)$ & $M_T$ bd., all $M_T$ \\
+  \hline
+  $\xi = 0.00$ (size) & 0.044 [0.042, 0.046] & 0.022 [0.020, 0.023] & 0.023 [0.022, 0.025] \\
+  $\xi = 0.05$ & 0.114 [0.111, 0.117] & 0.056 [0.054, 0.058] & 0.066 [0.064, 0.068] \\
+  $\xi = 0.10$ & 0.252 [0.248, 0.256] & 0.131 [0.128, 0.134] & 0.165 [0.162, 0.169] \\
+  $\xi = 0.20$ & 0.676 [0.672, 0.681] & 0.446 [0.441, 0.450] & 0.559 [0.555, 0.564] \\
+  $\xi = 0.50$ & 1.000 [1.000, 1.000] & 1.000 [1.000, 1.000] & 1.000 [1.000, 1.000] \\
+   \hline
+\end{tabular}
+    \end{footnotesize}
+\end{table}
