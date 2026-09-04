@@ -68,8 +68,8 @@ SeqC2ST <- R6Class("SeqC2ST",
                      model = NULL,
                      z_sumsq = NULL,
                      v = NULL,
-                     
-                     
+
+
                      initialize = function(name, alpha = 0.05, lr = 0.1) {
                        super$initialize(name)
                        self$alpha <- alpha
@@ -84,21 +84,24 @@ SeqC2ST <- R6Class("SeqC2ST",
                        g_t <- self$model$score(z_t)
                        f_t <- w_t * g_t
                        self$K <- min(1e6, self$K + f_t * self$v * self$K)
-                       
+
                        if (self$K >= 1 / self$alpha) {
                          return(TRUE)
                        }
                        
                        y01 <- (w_t + 1) / 2
                        self$model$update(z_t, y01)
-                       
-                       # z_ons <- g_t / max(1e-12, 1 - g_t * self$v)
-                       z_ons <- g_t / max(1e-12, 1 - self$v)
+
+                       # ONS on the betting fraction, as in Algorithm 1 of the
+                       # reference: the gradient is that of -log(1 + v * f_t) at the
+                       # current v, so it must use the signed payoff f_t (not the
+                       # unsigned classifier score g_t) and the denominator 1 + v * f_t.
+                       z_ons <- -f_t / max(1e-12, 1 + self$v * f_t)
                        self$z_sumsq <- self$z_sumsq + z_ons^2
                        A <- 1 + self$z_sumsq
-                       step_size <- 2 / (2 - log(3))# / 2
+                       step_size <- 2 / (2 - log(3))
                        v_new <- self$v - step_size * z_ons / A
-                       self$v <- min(0.5, max(-0.0, v_new))
+                       self$v <- min(0.5, max(0.0, v_new))
                        
                        return(FALSE)
                      },

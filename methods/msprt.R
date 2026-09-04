@@ -24,15 +24,20 @@ mSPRT = R6Class(
       self$increment_std = increment_std
       self$phi = phi
     },
-    monitor = function(trajectory, assignment_indicators=NULL) {
-      N = length(trajectory)
+    # Radius of the Robbins normal-mixture confidence sequence for the mean, so
+    # that the test rejects when the running mean exceeds it. The factor
+    # (phi + n) / n sits inside the square root.
+    mean_scale_boundary = function(num_observations) {
       two_sided_significance_level = 2 * self$significance_level
-      n = 1:N
-      boundary = self$increment_std / sqrt(n) * sqrt(log((self$phi + n) / (
+      n = 1:num_observations
+      return(self$increment_std / sqrt(n) * sqrt(log((self$phi + n) / (
         self$phi * two_sided_significance_level ^ 2
       ))
-      * (self$phi + n) / n)
-      return(trajectory / n > boundary)
+      * (self$phi + n) / n))
+    },
+    boundary = function(num_observations) {
+      n = 1:num_observations
+      return(list(index = n, value = n * self$mean_scale_boundary(num_observations)))
     }
   )
 )

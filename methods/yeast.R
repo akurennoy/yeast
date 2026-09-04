@@ -20,12 +20,15 @@ YEAST = R6Class(
       self$expected_num_observations = expected_num_observations
       self$increment_std = increment_std
     },
-    monitor = function(trajectory, assignment_indicators = NULL) {
-      boundary = (
-        qnorm(1 - self$significance_level / 2)
-        * sqrt(self$expected_num_observations) * self$increment_std
-      )
-      return(trajectory > boundary)
+    boundary = function(num_observations) {
+      return(list(
+        index = 1:num_observations,
+        value = rep(
+          qnorm(1 - self$significance_level / 2)
+          * sqrt(self$expected_num_observations) * self$increment_std,
+          num_observations
+        )
+      ))
     }
   )
 )

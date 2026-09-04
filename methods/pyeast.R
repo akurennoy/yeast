@@ -113,26 +113,24 @@ pYEAST = R6Class(
         self$actual_cumulative_num_observations_by_period = actual_cumulative_num_observations_by_period
       }
     },
-    monitor_ = function(trajectory,
-                        actual_cumulative_num_observations_by_period) {
-      N = length(trajectory)
+    boundary_ = function(N, actual_cumulative_num_observations_by_period) {
       K = length(actual_cumulative_num_observations_by_period)
       stopifnot(N == actual_cumulative_num_observations_by_period[K])
       stopifnot(K == length(self$thresholds))
-      
+
       # producing an alerting boundary by repeating the corresponding threshold
       # value for each observation within a period
-      boundary = rep(NA, N)
-      boundary[1:actual_cumulative_num_observations_by_period[1]] = self$thresholds[1]
+      value = rep(NA, N)
+      value[1:actual_cumulative_num_observations_by_period[1]] = self$thresholds[1]
       for (k in 2:K) {
-        boundary[(actual_cumulative_num_observations_by_period[k - 1] + 1):actual_cumulative_num_observations_by_period[k]] = self$thresholds[k]
+        value[(actual_cumulative_num_observations_by_period[k - 1] + 1):actual_cumulative_num_observations_by_period[k]] = self$thresholds[k]
       }
-      
-      return(trajectory > boundary)
+
+      return(list(index = 1:N, value = value))
     },
-    monitor = function(trajectory, assignment_indicators=NULL) {
-      return(self$monitor_(
-        trajectory,
+    boundary = function(num_observations) {
+      return(self$boundary_(
+        num_observations,
         self$actual_cumulative_num_observations_by_period
       ))
     }

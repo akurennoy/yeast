@@ -23,17 +23,22 @@ GAVI = R6Class(
       self$increment_std = increment_std
       self$n_tune = n_tune
     },
-    monitor = function(trajectory, assignment_indicators=NULL) {
-      N = length(trajectory)
+    rho = function() {
       two_sided_significance_level = 2 * self$significance_level
-      rho = self$n_tune / (log(log(
+      return(self$n_tune / (log(log(
         exp(1) * two_sided_significance_level ^ (-2)
       ))
-      - 2 * log(two_sided_significance_level))
-      n = 1:N
-      boundary = self$increment_std * sqrt((n + rho) * log((n + rho) / (rho * two_sided_significance_level ^
-                                                                          2)))
-      return(trajectory > boundary)
+      - 2 * log(two_sided_significance_level)))
+    },
+    boundary = function(num_observations) {
+      two_sided_significance_level = 2 * self$significance_level
+      rho = self$rho()
+      n = 1:num_observations
+      return(list(
+        index = n,
+        value = self$increment_std * sqrt((n + rho) * log((n + rho) / (rho * two_sided_significance_level ^
+                                                                         2)))
+      ))
     }
   )
 )

@@ -1,0 +1,11 @@
+# Raw Online Retail source data: downloaded and extracted by
+# evaluate_on_online_retail.R, ~46 MB, so it is fetched rather than committed.
+online_retail.zip
+Online Retail.xlsx
+
+# Per-period order tables derived from the workbook above by the same script.
+online-retail-orders/
+
+.Rhistory
+.RData
+.Rproj.user/

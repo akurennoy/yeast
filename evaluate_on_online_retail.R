@@ -11,12 +11,15 @@
 # detection should be close to the nominal significance level.
 
 
-library(arrow)
+# The intermediate split of the dataset is written and read back by this
+# script alone, so it is stored as RDS rather than parquet; that removes the
+# arrow dependency, which has no macOS binary for a Homebrew R build.
 library(dplyr)
 library(parallel)
 library(readxl)
 library(sandwich)
-library(stringr)
+# stringr is avoided: its stringi dependency needs an ICU source build. The two
+# calls it provided are one-liners in base R (see grepl/sub below).
 library(xtable)
 
 source("data_generation.R")
@@ -61,7 +64,7 @@ data <- read_excel(extracted_file)
 
 orders = data %>%
   filter(
-    !str_detect(InvoiceNo, "^c") 
+    !grepl("^c", InvoiceNo) 
     & !is.na(CustomerID)
   ) %>%
   group_by(InvoiceNo, CustomerID) %>%
@@ -95,19 +98,19 @@ orders = data %>%
 # The second part is used for the validation.
 
 
-# dir.create(PROCESSED_DATA_DIRECTORY)
-write_parquet(
+dir.create(PROCESSED_DATA_DIRECTORY, showWarnings = FALSE, recursive = TRUE)
+saveRDS(
   orders %>% filter(year_month %in% c("2010-12", "2011-01", "2011-02", "2011-03", "2011-04", "2011-05")),
   paste0(
     PROCESSED_DATA_DIRECTORY,
-    "00_201012_201105.parquet"
+    "00_201012_201105.rds"
   )
 )
-write_parquet(
+saveRDS(
   orders %>% filter(year_month %in% c("2011-06", "2011-07", "2011-08", "2011-09", "2011-10", "2011-11")),
   paste0(
     PROCESSED_DATA_DIRECTORY,
-    "01_201106_201111.parquet"
+    "01_201106_201111.rds"
   )
 )
 
@@ -149,29 +152,29 @@ initialise_continuous_methods = function(robust_increment_std,
       cumsum(actual_num_observations)
     ),
     # -- mSPRT
-    mSPRTphi100 = mSPRT$new("mSPRT100", SIGNIFICANCE_LEVEL, robust_increment_std, 100),
-    mSPRTphi025 = mSPRT$new("mSPRT025", SIGNIFICANCE_LEVEL, robust_increment_std, 25),
+    mSPRTphi100 = mSPRT$new("mSPRTphi100", SIGNIFICANCE_LEVEL, robust_increment_std, 100),
+    mSPRTphi025 = mSPRT$new("mSPRTphi25", SIGNIFICANCE_LEVEL, robust_increment_std, 25),
     mSPRTphi011 = mSPRT$new(
-      "mSPRT011",
+      "mSPRTphi11",
       SIGNIFICANCE_LEVEL,
       robust_increment_std,
       1 / 0.3 ^
         2
     ),
     mSPRTphi100nr = mSPRT$new(
-      "mSPRT100-non-robust",
+      "mSPRTphi100-non-robust",
       SIGNIFICANCE_LEVEL,
       non_robust_increment_std,
       100
     ),
     mSPRTphi025nr = mSPRT$new(
-      "mSPRT025-non-robust",
+      "mSPRTphi25-non-robust",
       SIGNIFICANCE_LEVEL,
       non_robust_increment_std,
       25
     ),
     mSPRTphi011nr = mSPRT$new(
-      "mSPRT011-non-robust",
+      "mSPRTphi11-non-robust",
       SIGNIFICANCE_LEVEL,
       non_robust_increment_std,
       1 / 0.3 ^ 2
@@ -267,7 +270,11 @@ USER_ID_COL = "user_id"
 METRIC_COL = "order_value"
 DTTM_COL = "occurred_at"
 
-system(sprintf("mkdir -p %s", OUTPUT_DIRECTORY))
+dir.create(OUTPUT_DIRECTORY, showWarnings = FALSE, recursive = TRUE)
+
+# Materialise the cached OBF critical values in the parent, so that the workers
+# do not race to generate the same file.
+invisible(LanDeMetsOBF$new("warm-up", SIGNIFICANCE_LEVEL, 1))
 
 num_cores = detectCores() - 1
 cl = makeCluster(num_cores)  # We parallelise the simulations over the cores
@@ -313,14 +320,12 @@ clusterExport(
     "SeqC2ST",
     "SIGNIFICANCE_LEVEL",
     "OUTPUT_DIRECTORY",
-    "NUM_OBSERVATIONS",
     "get_savings"
   )
 )
 
 
 process_file = function(i) {
-  library(arrow)
   library(data.table)
   library(sandwich)
   library(mvtnorm)
@@ -329,7 +334,7 @@ process_file = function(i) {
   set.seed(i)
   
   file_index = 2
-  raw_preceeding_data = read_parquet(sprintf("%s/%s", PROCESSED_DATA_DIRECTORY, input_files[file_index - 1]))
+  raw_preceeding_data = readRDS(sprintf("%s/%s", PROCESSED_DATA_DIRECTORY, input_files[file_index - 1]))
   data_cleaner = DataCleaner$new(raw_preceeding_data, METRIC_COL, USER_ID_COL, DTTM_COL, q =
                                    0.999)
   # print(sprintf(
@@ -356,7 +361,7 @@ process_file = function(i) {
   # )
   expected_num_observations = estimate_expected_number_of_orders(preceeding_data)
   
-  data = data_cleaner$clean(read_parquet(sprintf("%s/%s", PROCESSED_DATA_DIRECTORY, input_files[file_index])))
+  data = data_cleaner$clean(readRDS(sprintf("%s/%s", PROCESSED_DATA_DIRECTORY, input_files[file_index])))
   actual_num_observations = estimate_expected_number_of_orders(data)
   
   data_generator = DataGeneratorFromRealEvents$new(data, METRIC_COL, USER_ID_COL)
@@ -415,7 +420,7 @@ process_file = function(i) {
   }
   
   result = aggregator$get_result()
-  output_file_name = paste(strsplit(input_files[file_index], ".parquet"), sprintf("_%i", i), ".csv", sep = "")
+  output_file_name = paste(strsplit(input_files[file_index], ".rds"), sprintf("_%i", i), ".csv", sep = "")
   write.csv(result,
             paste(OUTPUT_DIRECTORY, output_file_name, sep = "/"),
             row.names = FALSE)
@@ -441,17 +446,20 @@ dr_dt = df[, .(num_detections = sum(num_detections),
 num_methods = nrow(dr_dt)
 
 dr_dt[, `:=`(detection_rate = num_detections / num_trials)]
+# Wilson score intervals with a Bonferroni correction across the reported
+# cells. The Wald interval used previously degenerates to zero width when the
+# detection rate reaches 0 or 1, which happens at the largest effect size.
+detection_rate_ci = wilson_interval(dr_dt$num_detections, dr_dt$num_trials,
+                                    confidence_level = 1 - 0.05 / num_methods)
 dr_dt[, `:=`(
   variance_estimate = ifelse(grepl("non-robust", method), "non-robust", "robust"),
-  method = str_split_fixed(method, "-", 2)[, 1],
-  ci_pm = qnorm(1 - 0.05 / 2 / num_methods) * sqrt(detection_rate * (1 - detection_rate) / num_trials)  # this is the CI half-length
+  method = sub("-.*$", "", method),
+  ci_lower = detection_rate_ci$lower,
+  ci_upper = detection_rate_ci$upper
 )]
 dr_dt[, `:=`(
-  detection_rate_with_ci = paste0(
-    sprintf("%.4f", round(detection_rate, 4)),
-    " ± ",
-    sprintf("%.4f", round(ci_pm, 4))
-  )
+  detection_rate_with_ci = sprintf("%.4f [%.4f, %.4f]",
+                                   detection_rate, ci_lower, ci_upper)
 )]
 
 # -- Computing the False Detection Rate
@@ -477,8 +485,14 @@ pow_dt = dcast(dr_dt[dr_dt$variance_estimate == 'robust'],
 
 
 as_dt = df[, .(total_savings = sum(total_savings),
-               num_detections = sum(num_detections)), by = .(method, effect)]
-as_dt[, `:=`(average_savings = total_savings / num_detections)]
+               num_trials = sum(num_trials)), by = .(method, effect)]
+# Averaged over all replications, matching the definition in get_savings(): a
+# replication with no detection contributes zero.
+as_dt[, `:=`(
+  variance_estimate = ifelse(grepl("non-robust", method), "non-robust", "robust"),
+  method = sub("-.*$", "", method),
+  average_savings = total_savings / num_trials
+)]
 savings_dt = dcast(as_dt[as_dt$variance_estimate == 'robust'],
                    method ~ effect,
                    value.var = "average_savings")
@@ -488,9 +502,9 @@ savings_dt = dcast(as_dt[as_dt$variance_estimate == 'robust'],
 methods = c(
   "Classical",
   "YEAST",
-  "mSPRT100",
-  "mSPRT011",
-  "mSPRT025",
+  "mSPRTphi100",
+  "mSPRTphi11",
+  "mSPRTphi25",
   "GAVI250",
   "GAVI500",
   "GAVI750",
@@ -516,3 +530,11 @@ print(xtable(pow_dt[methods, ..pow_cols]))
 # print(xtable(relative_pow_dt[methods, ..pow_cols]))
 
 savings_cols = names(savings_dt)
+
+print(savings_dt[methods, ..savings_cols])
+
+print(xtable(savings_dt[methods, ..savings_cols]))
+
+# The LaTeX actually used in the manuscript is produced by
+# scripts/make_retail_tables.R, which reads the per-worker CSVs written above
+# and so can be re-run without repeating the evaluation.

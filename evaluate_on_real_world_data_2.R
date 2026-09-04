@@ -12,7 +12,6 @@
 library(arrow)
 library(parallel)
 library(sandwich)
-library(stringr)
 library(xtable)
 
 source("data_generation.R")
@@ -312,7 +311,7 @@ num_methods = nrow(fdr_dt)
 fdr_dt[, `:=`(detection_rate = num_detections / num_trials)]
 fdr_dt[, `:=`(
   variance_estimate = ifelse(grepl("non-robust$", method), "non-robust", "robust"),
-  method = str_split_fixed(method, "-", 2)[, 1],
+  method = sub("-.*$", "", method),
   ci_pm = qnorm(1 - 0.05 / 2 / num_methods) * sqrt(detection_rate * (1 - detection_rate) / num_trials)  # this is the CI half-length
 )]
 
